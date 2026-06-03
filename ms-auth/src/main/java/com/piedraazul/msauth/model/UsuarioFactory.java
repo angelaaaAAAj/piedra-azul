@@ -13,7 +13,9 @@ public class UsuarioFactory {
                                 String password,
                                 String nombre,
                                 String email,
-                                String rol) {
+                                String rol,
+                                Long pacienteId,
+                                Long medicoId) {
         Rol rolEnum = switch (rol.toUpperCase()) {
             case "ADMINISTRADOR"    -> Rol.ADMINISTRADOR;
             case "MEDICO_TERAPISTA" -> Rol.MEDICO_TERAPISTA;
@@ -31,6 +33,8 @@ public class UsuarioFactory {
         usuario.setEmail(email);
         usuario.setRol(rolEnum);
         usuario.setActivo(true);
+        usuario.setPacienteId(pacienteId);
+        usuario.setMedicoId(medicoId);
         return usuario;
     }
 }

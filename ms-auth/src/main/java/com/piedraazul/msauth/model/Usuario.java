@@ -34,4 +34,10 @@ public class Usuario {
 
     @Column(nullable = false)
     private boolean activo = true;
+
+    @Column
+    private Long medicoId;
+
+    @Column
+    private Long pacienteId;
 }

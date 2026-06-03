@@ -23,8 +23,9 @@ public class UsuarioService {
                                 String password,
                                 String nombre,
                                 String email,
-                                String rol) {
-
+                                String rol,
+                                Long pacienteId,
+                                Long medicoId) {
         if (usuarioRepository.existsByUsername(username)) {
             throw new RuntimeException("El username ya existe: " + username);
         }
@@ -32,15 +33,15 @@ public class UsuarioService {
             throw new RuntimeException("El email ya está registrado: " + email);
         }
 
-        // Factory Method crea el objeto según el rol
         Usuario usuario = UsuarioFactory.crear(
                 username,
-                passwordEncoder.encode(password), // contraseña encriptada
+                passwordEncoder.encode(password),
                 nombre,
                 email,
-                rol
+                rol,
+                pacienteId,
+                medicoId
         );
-
         return usuarioRepository.save(usuario);
     }
 
@@ -68,5 +69,14 @@ public class UsuarioService {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + id));
         usuario.setActivo(false);
         return usuarioRepository.save(usuario);
+    }
+    // -- Buscar documento del paciente --
+    public Optional<Usuario> buscarPorPacienteId(Long pacienteId) {
+        return usuarioRepository.findByPacienteId(pacienteId);
+    }
+
+    // -- Verificar paciente --
+    public boolean existePacienteConUsuario(Long pacienteId) {
+        return usuarioRepository.existsByPacienteId(pacienteId);
     }
 }

@@ -22,4 +22,10 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     // Verificar si un email ya existe
     boolean existsByEmail(String email);
+
+    // Buscar usuario por pacienteId
+    Optional<Usuario> findByPacienteId(Long pacienteId);
+
+    // Verificar si ya existe un usuario para ese paciente
+    boolean existsByPacienteId(Long pacienteId);
 }
