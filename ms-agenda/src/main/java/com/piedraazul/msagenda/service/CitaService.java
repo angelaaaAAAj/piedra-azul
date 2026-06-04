@@ -23,6 +23,7 @@ public class CitaService {
     private final MedicoRepository medicoRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PacienteClientService pacienteClientService;
+    private final HistorialClientService historialClientService;
 
     // Mapa de estrategias disponibles (patrón Strategy)
     private final Map<String, AgendamientoStrategy> estrategias;
@@ -108,16 +109,31 @@ public class CitaService {
         Cita cita = citaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cita no encontrada: " + id));
 
-        LocalDateTime nuevaFecha = LocalDateTime.parse(nuevaFechaHora);
+        // Guardar fecha anterior ANTES de modificar
+        LocalDateTime fechaAnterior = cita.getFechaHora();
+        LocalDateTime fechaNueva    = LocalDateTime.parse(nuevaFechaHora);
 
         if (citaRepository.existsByMedicoIdAndFechaHora(
-                cita.getMedico().getId(), nuevaFecha)) {
-            throw new RuntimeException("El nuevo horario ya está ocupado: " + nuevaFecha);
+                cita.getMedico().getId(), fechaNueva)) {
+            throw new RuntimeException("El nuevo horario ya está ocupado: " + fechaNueva);
         }
 
-        cita.setFechaHora(nuevaFecha);
+        cita.setFechaHora(fechaNueva);
         cita.setEstado(EstadoCita.REAGENDADA);
-        return citaRepository.save(cita);
+        Cita guardada = citaRepository.save(cita);
+
+        // Notificar a ms-historial con fechaAnterior y fechaNueva
+        historialClientService.registrarReagendamiento(
+                guardada.getId(),
+                guardada.getPacienteId(),
+                guardada.getMedico().getId(),
+                fechaAnterior,
+                fechaNueva,
+                cita.getMotivo(),
+                "sistema"
+        );
+
+        return guardada;
     }
 
     // -- Listar citas por médico --
