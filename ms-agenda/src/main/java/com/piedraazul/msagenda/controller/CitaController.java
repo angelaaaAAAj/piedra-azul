@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.PrintWriter;
+import java.time.LocalDate;
 
 import java.util.List;
 import java.util.Map;
@@ -88,5 +91,53 @@ public class CitaController {
         return citaRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+    // -- GET /api/citas/export?medicoId=X&fecha=Y --
+    // Exporta citas de un médico en una fecha a CSV
+    @GetMapping("/export")
+    public void exportarCsv(
+            @RequestParam Long medicoId,
+            @RequestParam(required = false) String fecha,
+            HttpServletResponse response) {
+
+        try {
+            LocalDate localDate = (fecha != null && !fecha.isBlank())
+                    ? LocalDate.parse(fecha) : null;
+
+            response.setContentType("text/csv; charset=UTF-8");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=\"citas_medico_" + medicoId
+                            + (localDate != null ? "_" + localDate : "") + ".csv\"");
+
+            PrintWriter writer = response.getWriter();
+
+            // Cabecera del CSV
+            writer.println("Nombre Paciente,Documento,Hora,Motivo,Estado");
+
+            // Filas
+            citaService.exportarCitasConDatosPaciente(medicoId, localDate)
+                    .forEach(fila -> writer.println(
+                            escaparCsv(fila.get("nombrePaciente")) + "," +
+                                    escaparCsv(fila.get("documento"))      + "," +
+                                    escaparCsv(fila.get("hora"))           + "," +
+                                    escaparCsv(fila.get("motivo"))         + "," +
+                                    escaparCsv(fila.get("estado"))
+                    ));
+
+            writer.flush();
+
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Escapa valores con comas o comillas para CSV válido
+    private String escaparCsv(String valor) {
+        if (valor == null) return "";
+        if (valor.contains(",") || valor.contains("\"") || valor.contains("\n")) {
+            return "\"" + valor.replace("\"", "\"\"") + "\"";
+        }
+        return valor;
     }
 }
