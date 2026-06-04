@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -150,4 +151,37 @@ public class CitaService {
     public List<Cita> listarTodas() {
         return citaRepository.findAll();
     }
+    // -- Exportar citas a CSV por médico y fecha --
+    public List<Map<String, String>> exportarCitasConDatosPaciente(
+            Long medicoId, LocalDate fecha) {
+
+        List<Cita> citas = citaRepository.findByMedicoId(medicoId).stream()
+                .filter(c -> fecha == null
+                        || c.getFechaHora().toLocalDate().equals(fecha))
+                .toList();
+
+        return citas.stream().map(cita -> {
+            Map paciente = pacienteClientService.getPaciente(cita.getPacienteId());
+
+            String nombrePaciente = "Desconocido";
+            String documento      = "-";
+
+            if (paciente != null) {
+                String nombre   = paciente.getOrDefault("nombre",   "").toString();
+                String apellido = paciente.getOrDefault("apellido", "").toString();
+                nombrePaciente  = (nombre + " " + apellido).trim();
+                documento       = paciente.getOrDefault(
+                        "numeroDocumento", "-").toString();
+            }
+
+            return Map.of(
+                    "nombrePaciente", nombrePaciente,
+                    "documento",      documento,
+                    "hora",           cita.getFechaHora().toLocalTime().toString(),
+                    "motivo",         cita.getMotivo()  != null ? cita.getMotivo()  : "",
+                    "estado",         cita.getEstado()  != null ? cita.getEstado().name() : ""
+            );
+        }).toList();
+    }
+
 }
