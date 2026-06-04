@@ -31,7 +31,7 @@ public class PiedraAzulApp extends Application {
     @Override
     public void start(Stage stage) {
 
-        // ── PANEL IZQUIERDO ──────────────────────────────────────
+        // --- PANEL IZQUIERDO ---
         VBox panelIzquierdo = new VBox(20);
         panelIzquierdo.setAlignment(Pos.CENTER);
         panelIzquierdo.setPrefWidth(320);
@@ -67,7 +67,7 @@ public class PiedraAzulApp extends Application {
         panelIzquierdo.getChildren().addAll(
                 icono, nombreClinica, nombreClinica2, separador, slogan);
 
-        // ── PANEL DERECHO ─────────────────────────────────────────
+        // ---- PANEL DERECHO ----
         VBox panelDerecho = new VBox(16);
         panelDerecho.setAlignment(Pos.CENTER_LEFT);
         panelDerecho.setPadding(new Insets(50, 50, 50, 50));
@@ -147,7 +147,6 @@ public class PiedraAzulApp extends Application {
             }
         });
 
-        // Links
         Hyperlink linkOlvide = new Hyperlink("¿Olvidó su contraseña?");
         linkOlvide.setStyle("-fx-text-fill: #7B2FBE; -fx-font-size: 12px; -fx-border-color: transparent;");
         linkOlvide.setOnAction(e -> abrirOlvideContrasena());
@@ -177,7 +176,7 @@ public class PiedraAzulApp extends Application {
         stage.show();
     }
 
-    // ── MENÚ SEGÚN ROL ────────────────────────────────────────────
+    // ---- MENÚ SEGÚN ROL -----
     private void abrirMenuPrincipal(Stage stage, String rol, String nombre) {
         VBox menu = new VBox(16);
         menu.setAlignment(Pos.CENTER);
@@ -252,7 +251,7 @@ public class PiedraAzulApp extends Application {
         stage.setScene(new Scene(menu, 700, 460));
     }
 
-    // ── OLVIDÓ CONTRASEÑA ─────────────────────────────────────────
+    // ----- OLVIDÓ CONTRASEÑA -----
     private void abrirOlvideContrasena() {
         Stage ventana = new Stage();
         VBox root = new VBox(18);
@@ -265,14 +264,20 @@ public class PiedraAzulApp extends Application {
         titulo.setFont(Font.font("System", FontWeight.BOLD, 22));
         titulo.setFill(Color.web("#4C1D95"));
 
-        Text instruccion = new Text("Ingresa tu email y te enviaremos\nlas instrucciones de recuperación.");
+        Text instruccion = new Text("Ingresa tu número de documento y\ntu nueva contraseña.");
         instruccion.setFont(Font.font("System", 13));
         instruccion.setFill(Color.web("#6B7280"));
 
-        Label lblEmail = etiqueta("Correo electrónico");
-        TextField txtEmail = crearCampo("ejemplo@correo.com");
+        Label lblDoc = etiqueta("Número de documento");
+        TextField txtDoc = crearCampo("Ingrese su documento");
 
-        Button btnEnviar = new Button("Enviar instrucciones");
+        Label lblNuevaPass = etiqueta("Nueva contraseña");
+        PasswordField txtNuevaPass = new PasswordField();
+        txtNuevaPass.setPromptText("Nueva contraseña");
+        txtNuevaPass.setPrefHeight(38);
+        txtNuevaPass.setStyle(campoEstilo());
+
+        Button btnEnviar = new Button("Actualizar contraseña");
         btnEnviar.setPrefWidth(Double.MAX_VALUE);
         btnEnviar.setPrefHeight(42);
         btnEnviar.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -283,28 +288,28 @@ public class PiedraAzulApp extends Application {
         lblFeedback.setWrapText(true);
 
         btnEnviar.setOnAction(e -> {
-            String email = txtEmail.getText().trim();
-            if (email.isEmpty() || !email.contains("@")) {
-                lblFeedback.setText("Ingresa un email válido.");
+            if (txtDoc.getText().isBlank() || txtNuevaPass.getText().isBlank()) {
+                lblFeedback.setText("Complete todos los campos.");
                 lblFeedback.setTextFill(Color.web("#DC2626"));
             } else {
-                lblFeedback.setText("✓ Se han enviado las instrucciones a " + email);
+                lblFeedback.setText("✓ Funcionalidad en desarrollo.");
                 lblFeedback.setTextFill(Color.web("#059669"));
                 btnEnviar.setDisable(true);
             }
         });
 
-        root.getChildren().addAll(titulo, instruccion, lblEmail, txtEmail, btnEnviar, lblFeedback);
+        root.getChildren().addAll(titulo, instruccion,
+                lblDoc, txtDoc, lblNuevaPass, txtNuevaPass,
+                btnEnviar, lblFeedback);
         ventana.setTitle("Recuperar Contraseña");
-        ventana.setScene(new Scene(root, 420, 300));
+        ventana.setScene(new Scene(root, 420, 320));
         ventana.show();
     }
 
-    // ── REGISTRO ──────────────────────────────────────────────────
+    // ---- REGISTRO -----
     private void abrirRegistro() {
         Stage ventana = new Stage();
 
-        // Tipo de registro principal
         ComboBox<String> cbTipo = new ComboBox<>();
         cbTipo.getItems().addAll(
                 "Personal médico / Agendador",
@@ -313,84 +318,78 @@ public class PiedraAzulApp extends Application {
         cbTipo.setValue("Personal médico / Agendador");
         cbTipo.setPrefWidth(Double.MAX_VALUE);
 
-        // Campos comunes
-        TextField txtNombre    = crearCampo("Nombre");
-        TextField txtApellido  = crearCampo("Apellido");
-        TextField txtEmail     = crearCampo("Email");
-        TextField txtDocumento = crearCampo("Número de documento");
-        TextField txtTelefono  = crearCampo("Teléfono");
-
-        // Campos solo para paciente nuevo
-        ComboBox<String> cbGenero = new ComboBox<>();
-        cbGenero.getItems().addAll("HOMBRE", "MUJER", "OTRO");
-        cbGenero.setPromptText("Género *");
-        cbGenero.setPrefWidth(Double.MAX_VALUE);
-
-        TextField txtEps = crearCampo("EPS (opcional)");
-
-        DatePicker dpFechaNacimientoPaciente = new DatePicker();
-        dpFechaNacimientoPaciente.setPromptText("Fecha de nacimiento *");
-        dpFechaNacimientoPaciente.setPrefWidth(Double.MAX_VALUE);
-
-        PasswordField txtPasswordPaciente = new PasswordField();
-        txtPasswordPaciente.setPromptText("Contraseña *");
-        txtPasswordPaciente.setPrefHeight(38);
-        txtPasswordPaciente.setStyle(campoEstilo());
-
-        TextField txtUsernamePaciente = crearCampo("Username *");
-
-        // Campos para paciente existente
-        TextField txtDocumentoExistente = crearCampo("Número de documento *");
-        TextField txtUsernameExistente  = crearCampo("Username *");
-        TextField txtEmailExistente     = crearCampo("Email");
-
-        PasswordField txtPasswordExistente = new PasswordField();
-        txtPasswordExistente.setPromptText("Contraseña *");
-        txtPasswordExistente.setPrefHeight(38);
-        txtPasswordExistente.setStyle(campoEstilo());
-
-        // Campos para personal médico
+        // ---- Campos para personal médico (separados) ---
+        TextField txtNombrePersonal    = crearCampo("Nombre *");
+        TextField txtApellidoPersonal  = crearCampo("Apellido *");
+        TextField txtEmailPersonal     = crearCampo("Email *");
+        TextField txtDocumentoPersonal = crearCampo("Número de documento *");
+        TextField txtTelefonoPersonal  = crearCampo("Teléfono *");
         PasswordField txtPassword = new PasswordField();
         txtPassword.setPromptText("Contraseña *");
         txtPassword.setPrefHeight(38);
         txtPassword.setStyle(campoEstilo());
-
         ComboBox<String> cbRol = new ComboBox<>();
         cbRol.getItems().addAll("MEDICO_TERAPISTA", "AGENDADOR");
         cbRol.setPromptText("Rol *");
         cbRol.setPrefWidth(Double.MAX_VALUE);
 
-        // Paneles por tipo
+        // ── Campos para paciente nuevo (separados) ──
+        TextField txtNombrePaciente    = crearCampo("Nombre *");
+        TextField txtApellidoPaciente  = crearCampo("Apellido *");
+        TextField txtEmailPaciente     = crearCampo("Email (opcional)");
+        TextField txtDocumentoPaciente = crearCampo("Número de documento *");
+        TextField txtTelefonoPaciente  = crearCampo("Teléfono *");
+        ComboBox<String> cbGenero = new ComboBox<>();
+        cbGenero.getItems().addAll("HOMBRE", "MUJER", "OTRO");
+        cbGenero.setPromptText("Género *");
+        cbGenero.setPrefWidth(Double.MAX_VALUE);
+        DatePicker dpFechaNacimiento = new DatePicker();
+        dpFechaNacimiento.setPromptText("Fecha de nacimiento *");
+        dpFechaNacimiento.setPrefWidth(Double.MAX_VALUE);
+        TextField txtEps = crearCampo("EPS (opcional)");
+        PasswordField txtPasswordPaciente = new PasswordField();
+        txtPasswordPaciente.setPromptText("Contraseña *");
+        txtPasswordPaciente.setPrefHeight(38);
+        txtPasswordPaciente.setStyle(campoEstilo());
+
+        // --- Campos para paciente existente ---
+        TextField txtDocumentoExistente = crearCampo("Número de documento *");
+        TextField txtEmailExistente     = crearCampo("Email (opcional)");
+        PasswordField txtPasswordExistente = new PasswordField();
+        txtPasswordExistente.setPromptText("Contraseña *");
+        txtPasswordExistente.setPrefHeight(38);
+        txtPasswordExistente.setStyle(campoEstilo());
+
+        // --- Paneles ---
         VBox camposPersonal = new VBox(8,
-                etiqueta("Nombre *"), txtNombre,
-                etiqueta("Apellido *"), txtApellido,
-                etiqueta("Email *"), txtEmail,
-                etiqueta("Documento *"), txtDocumento,
-                etiqueta("Teléfono *"), txtTelefono,
+                etiqueta("Nombre *"), txtNombrePersonal,
+                etiqueta("Apellido *"), txtApellidoPersonal,
+                etiqueta("Email *"), txtEmailPersonal,
+                etiqueta("Documento *"), txtDocumentoPersonal,
+                etiqueta("Teléfono *"), txtTelefonoPersonal,
                 etiqueta("Contraseña *"), txtPassword,
                 etiqueta("Rol *"), cbRol);
 
         VBox camposPacienteNuevo = new VBox(8,
-                etiqueta("Nombre"), txtNombre,
-                etiqueta("Apellido"), txtApellido,
-                etiqueta("Email"), txtEmail,
-                etiqueta("Documento"), txtDocumento,
-                etiqueta("Teléfono"), txtTelefono,
-                etiqueta("Género"), cbGenero,
-                etiqueta("Fecha de nacimiento *"), dpFechaNacimientoPaciente,
+                etiqueta("Nombre *"), txtNombrePaciente,
+                etiqueta("Apellido *"), txtApellidoPaciente,
+                etiqueta("Email (opcional)"), txtEmailPaciente,
+                etiqueta("Documento *"), txtDocumentoPaciente,
+                etiqueta("Teléfono *"), txtTelefonoPaciente,
+                etiqueta("Género *"), cbGenero,
+                etiqueta("Fecha de nacimiento *"), dpFechaNacimiento,
                 etiqueta("EPS (opcional)"), txtEps,
-                etiqueta("Contraseña"), txtPasswordPaciente);
+                etiqueta("Contraseña *"), txtPasswordPaciente);
         camposPacienteNuevo.setVisible(false);
         camposPacienteNuevo.setManaged(false);
 
         VBox camposPacienteExistente = new VBox(8,
-                etiqueta("Número de documento"), txtDocumentoExistente,
+                etiqueta("Documento *"), txtDocumentoExistente,
                 etiqueta("Email (opcional)"), txtEmailExistente,
-                etiqueta("Contraseña"), txtPasswordExistente);
+                etiqueta("Contraseña *"), txtPasswordExistente);
         camposPacienteExistente.setVisible(false);
         camposPacienteExistente.setManaged(false);
 
-        // Mostrar panel según tipo seleccionado
         cbTipo.setOnAction(e -> {
             String tipo = cbTipo.getValue();
             camposPersonal.setVisible(tipo.equals("Personal médico / Agendador"));
@@ -421,8 +420,10 @@ public class PiedraAzulApp extends Application {
                 String tipo = cbTipo.getValue();
 
                 if (tipo.equals("Personal médico / Agendador")) {
-                    // Validar campos obligatorios
-                    if (txtNombre.getText().isBlank() || txtApellido.getText().isBlank()
+                    if (txtNombrePersonal.getText().isBlank()
+                            || txtApellidoPersonal.getText().isBlank()
+                            || txtDocumentoPersonal.getText().isBlank()
+                            || txtTelefonoPersonal.getText().isBlank()
                             || txtPassword.getText().isBlank()
                             || cbRol.getValue() == null) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
@@ -430,41 +431,40 @@ public class PiedraAzulApp extends Application {
                         return;
                     }
                     url = "http://localhost:8080/api/auth/registro";
-                    body.put("username", txtDocumento.getText().trim());
+                    body.put("username", txtDocumentoPersonal.getText().trim());
+                    body.put("nombre", txtNombrePersonal.getText().trim()
+                            + " " + txtApellidoPersonal.getText().trim());
+                    body.put("email", txtEmailPersonal.getText().trim());
                     body.put("password", txtPassword.getText().trim());
-                    body.put("nombre", txtNombre.getText().trim()
-                            + " " + txtApellido.getText().trim());
-                    body.put("email", txtEmail.getText().trim());
                     body.put("rol", cbRol.getValue());
 
                 } else if (tipo.equals("Paciente nuevo")) {
-                    // Validar campos obligatorios
-                    if (txtNombre.getText().isBlank() || txtApellido.getText().isBlank()
-                            || txtDocumento.getText().isBlank()
-                            || txtTelefono.getText().isBlank()
+                    if (txtNombrePaciente.getText().isBlank()
+                            || txtApellidoPaciente.getText().isBlank()
+                            || txtDocumentoPaciente.getText().isBlank()
+                            || txtTelefonoPaciente.getText().isBlank()
                             || cbGenero.getValue() == null
-                            || dpFechaNacimientoPaciente.getValue() == null
+                            || dpFechaNacimiento.getValue() == null
                             || txtPasswordPaciente.getText().isBlank()) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
                         lblFeedback.setTextFill(Color.web("#DC2626"));
                         return;
                     }
                     url = "http://localhost:8080/api/auth/registro/paciente-nuevo";
-                    body.put("nombre", txtNombre.getText().trim());
-                    body.put("apellido", txtApellido.getText().trim());
-                    body.put("email", txtEmail.getText().isBlank()
-                            ? null : txtEmail.getText().trim());
-                    body.put("numeroDocumento", txtDocumento.getText().trim());
-                    body.put("telefono", txtTelefono.getText().trim());
+                    body.put("nombre", txtNombrePaciente.getText().trim());
+                    body.put("apellido", txtApellidoPaciente.getText().trim());
+                    body.put("email", txtEmailPaciente.getText().isBlank()
+                            ? null : txtEmailPaciente.getText().trim());
+                    body.put("numeroDocumento", txtDocumentoPaciente.getText().trim());
+                    body.put("telefono", txtTelefonoPaciente.getText().trim());
                     body.put("genero", cbGenero.getValue());
                     body.put("eps", txtEps.getText().isBlank()
                             ? null : txtEps.getText().trim());
-                    body.put("fechaNacimiento", dpFechaNacimientoPaciente.getValue().toString());
-                    body.put("username", txtDocumento.getText().trim());
+                    body.put("fechaNacimiento", dpFechaNacimiento.getValue().toString());
+                    body.put("username", txtDocumentoPaciente.getText().trim());
                     body.put("password", txtPasswordPaciente.getText().trim());
 
                 } else {
-                    // Paciente existente
                     if (txtDocumentoExistente.getText().isBlank()
                             || txtPasswordExistente.getText().isBlank()) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
@@ -495,7 +495,8 @@ public class PiedraAzulApp extends Application {
                 } else {
                     Map<?, ?> err = mapper.readValue(resp.body(), Map.class);
                     Object errorMsg = err.get("error");
-                    lblFeedback.setText("✗ " + (errorMsg != null ? errorMsg.toString() : "Error en el registro"));
+                    lblFeedback.setText("✗ " + (errorMsg != null
+                            ? errorMsg.toString() : "Error en el registro"));
                     lblFeedback.setTextFill(Color.web("#DC2626"));
                 }
             } catch (Exception ex) {
@@ -523,7 +524,7 @@ public class PiedraAzulApp extends Application {
         ventana.show();
     }
 
-    // ── UTILIDADES ────────────────────────────────────────────────
+    // ---- UTILIDADES ----
     private Button crearBotonMenu(String texto, Runnable accion) {
         Button btn = new Button(texto);
         btn.setPrefWidth(300);
