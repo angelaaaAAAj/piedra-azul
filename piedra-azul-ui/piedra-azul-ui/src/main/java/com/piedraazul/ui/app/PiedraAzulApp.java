@@ -88,7 +88,7 @@ public class PiedraAzulApp extends Application {
         lblUsuario.setTextFill(Color.web("#4C1D95"));
 
         TextField txtUsuario = new TextField();
-        txtUsuario.setPromptText("Ingrese su usuario");
+        txtUsuario.setPromptText("Número de documento (cédula o T.I.)");
         txtUsuario.setPrefHeight(40);
         txtUsuario.setStyle(campoEstilo());
 
@@ -350,7 +350,6 @@ public class PiedraAzulApp extends Application {
         txtPasswordExistente.setStyle(campoEstilo());
 
         // Campos para personal médico
-        TextField txtUsername  = crearCampo("Username *");
         PasswordField txtPassword = new PasswordField();
         txtPassword.setPromptText("Contraseña *");
         txtPassword.setPrefHeight(38);
@@ -363,14 +362,13 @@ public class PiedraAzulApp extends Application {
 
         // Paneles por tipo
         VBox camposPersonal = new VBox(8,
-                etiqueta("Nombre"), txtNombre,
-                etiqueta("Apellido"), txtApellido,
-                etiqueta("Email"), txtEmail,
-                etiqueta("Documento"), txtDocumento,
-                etiqueta("Teléfono"), txtTelefono,
-                etiqueta("Username"), txtUsername,
-                etiqueta("Contraseña"), txtPassword,
-                etiqueta("Rol"), cbRol);
+                etiqueta("Nombre *"), txtNombre,
+                etiqueta("Apellido *"), txtApellido,
+                etiqueta("Email *"), txtEmail,
+                etiqueta("Documento *"), txtDocumento,
+                etiqueta("Teléfono *"), txtTelefono,
+                etiqueta("Contraseña *"), txtPassword,
+                etiqueta("Rol *"), cbRol);
 
         VBox camposPacienteNuevo = new VBox(8,
                 etiqueta("Nombre"), txtNombre,
@@ -381,7 +379,6 @@ public class PiedraAzulApp extends Application {
                 etiqueta("Género"), cbGenero,
                 etiqueta("Fecha de nacimiento *"), dpFechaNacimientoPaciente,
                 etiqueta("EPS (opcional)"), txtEps,
-                etiqueta("Username"), txtUsernamePaciente,
                 etiqueta("Contraseña"), txtPasswordPaciente);
         camposPacienteNuevo.setVisible(false);
         camposPacienteNuevo.setManaged(false);
@@ -389,7 +386,6 @@ public class PiedraAzulApp extends Application {
         VBox camposPacienteExistente = new VBox(8,
                 etiqueta("Número de documento"), txtDocumentoExistente,
                 etiqueta("Email (opcional)"), txtEmailExistente,
-                etiqueta("Username"), txtUsernameExistente,
                 etiqueta("Contraseña"), txtPasswordExistente);
         camposPacienteExistente.setVisible(false);
         camposPacienteExistente.setManaged(false);
@@ -427,7 +423,6 @@ public class PiedraAzulApp extends Application {
                 if (tipo.equals("Personal médico / Agendador")) {
                     // Validar campos obligatorios
                     if (txtNombre.getText().isBlank() || txtApellido.getText().isBlank()
-                            || txtUsername.getText().isBlank()
                             || txtPassword.getText().isBlank()
                             || cbRol.getValue() == null) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
@@ -435,7 +430,7 @@ public class PiedraAzulApp extends Application {
                         return;
                     }
                     url = "http://localhost:8080/api/auth/registro";
-                    body.put("username", txtUsername.getText().trim());
+                    body.put("username", txtDocumento.getText().trim());
                     body.put("password", txtPassword.getText().trim());
                     body.put("nombre", txtNombre.getText().trim()
                             + " " + txtApellido.getText().trim());
@@ -449,7 +444,6 @@ public class PiedraAzulApp extends Application {
                             || txtTelefono.getText().isBlank()
                             || cbGenero.getValue() == null
                             || dpFechaNacimientoPaciente.getValue() == null
-                            || txtUsernamePaciente.getText().isBlank()
                             || txtPasswordPaciente.getText().isBlank()) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
                         lblFeedback.setTextFill(Color.web("#DC2626"));
@@ -466,13 +460,12 @@ public class PiedraAzulApp extends Application {
                     body.put("eps", txtEps.getText().isBlank()
                             ? null : txtEps.getText().trim());
                     body.put("fechaNacimiento", dpFechaNacimientoPaciente.getValue().toString());
-                    body.put("username", txtUsernamePaciente.getText().trim());
+                    body.put("username", txtDocumento.getText().trim());
                     body.put("password", txtPasswordPaciente.getText().trim());
 
                 } else {
                     // Paciente existente
                     if (txtDocumentoExistente.getText().isBlank()
-                            || txtUsernameExistente.getText().isBlank()
                             || txtPasswordExistente.getText().isBlank()) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
                         lblFeedback.setTextFill(Color.web("#DC2626"));
@@ -480,7 +473,7 @@ public class PiedraAzulApp extends Application {
                     }
                     url = "http://localhost:8080/api/auth/registro/paciente-existente";
                     body.put("numeroDocumento", txtDocumentoExistente.getText().trim());
-                    body.put("username", txtUsernameExistente.getText().trim());
+                    body.put("username", txtDocumentoExistente.getText().trim());
                     body.put("password", txtPasswordExistente.getText().trim());
                     body.put("email", txtEmailExistente.getText().isBlank()
                             ? null : txtEmailExistente.getText().trim());

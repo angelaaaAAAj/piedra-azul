@@ -45,7 +45,8 @@ class UsuarioServiceTest {
     void testFactoryMethod_CreaUsuarioAdministrador() {
         Usuario usuario = UsuarioFactory.crear(
                 "admin1", "1234", "Administrador",
-                "admin@piedraazul.com", "ADMINISTRADOR");
+                "admin@piedraazul.com", "ADMINISTRADOR",
+                null, null);
 
         assertNotNull(usuario);
         assertEquals(Rol.ADMINISTRADOR, usuario.getRol());
@@ -59,7 +60,8 @@ class UsuarioServiceTest {
         assertThrows(IllegalArgumentException.class, () ->
                 UsuarioFactory.crear(
                         "user1", "1234", "Usuario",
-                        "user@test.com", "ROL_INEXISTENTE")
+                        "user@test.com", "ROL_INEXISTENTE",
+                        null, null)
         );
     }
 
@@ -75,7 +77,8 @@ class UsuarioServiceTest {
 
         Usuario resultado = usuarioService.crearUsuario(
                 "admin1", "1234", "Administrador",
-                "admin@piedraazul.com", "ADMINISTRADOR");
+                "admin@piedraazul.com", "ADMINISTRADOR",
+                null, null);
 
         assertNotNull(resultado);
         assertEquals("admin1", resultado.getUsername());
