@@ -31,8 +31,8 @@ public class Paciente {
     @Column(nullable = false, unique = true)
     private String numeroDocumento;
 
-    // Opcional según requisito
-    @Column(nullable = true)
+    
+    @Column(nullable = false)
     private LocalDate fechaNacimiento;
 
     // Opcional según requisito

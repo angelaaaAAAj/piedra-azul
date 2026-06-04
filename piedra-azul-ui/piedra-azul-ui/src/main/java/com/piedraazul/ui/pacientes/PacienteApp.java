@@ -89,7 +89,7 @@ public class PacienteApp extends Application {
         txtEps.setPromptText("EPS (opcional)");
         cbGenero.getItems().addAll("HOMBRE", "MUJER", "OTRO");
         cbGenero.setPromptText("Género *");
-        dpFechaNacimiento.setPromptText("Fecha nacimiento (opcional)");
+        dpFechaNacimiento.setPromptText("Fecha de nacimiento *");
 
         GridPane formulario = new GridPane();
         formulario.setHgap(10);
@@ -176,8 +176,9 @@ public class PacienteApp extends Application {
     private void registrarPaciente() {
         if (txtNombre.getText().isBlank() || txtApellido.getText().isBlank()
                 || txtDocumento.getText().isBlank() || txtTelefono.getText().isBlank()
-                || cbGenero.getValue() == null) {
-            mostrarAlerta("Error", "Complete los campos obligatorios (*)");
+                || cbGenero.getValue() == null
+                || dpFechaNacimiento.getValue() == null) {
+            mostrarAlerta("Error", "Complete los campos obligatorios (*)\nIncluyendo fecha de nacimiento");
             return;
         }
 

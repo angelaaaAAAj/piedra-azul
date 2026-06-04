@@ -4,6 +4,7 @@ import com.piedraazul.mspacientes.model.EstadoPaciente;
 import com.piedraazul.mspacientes.model.Genero;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -20,7 +21,8 @@ public class PacienteDTO {
     @NotBlank(message = "El número de documento es obligatorio")
     private String numeroDocumento;
 
-    // Opcional según requisito
+    // obligatoria
+    @NotNull(message = "La fecha de nacimiento es obligatoria")
     private LocalDate fechaNacimiento;
 
     // Opcional según requisito

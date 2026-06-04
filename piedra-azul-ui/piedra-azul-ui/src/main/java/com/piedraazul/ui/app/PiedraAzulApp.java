@@ -328,6 +328,10 @@ public class PiedraAzulApp extends Application {
 
         TextField txtEps = crearCampo("EPS (opcional)");
 
+        DatePicker dpFechaNacimientoPaciente = new DatePicker();
+        dpFechaNacimientoPaciente.setPromptText("Fecha de nacimiento *");
+        dpFechaNacimientoPaciente.setPrefWidth(Double.MAX_VALUE);
+
         PasswordField txtPasswordPaciente = new PasswordField();
         txtPasswordPaciente.setPromptText("Contraseña *");
         txtPasswordPaciente.setPrefHeight(38);
@@ -375,6 +379,7 @@ public class PiedraAzulApp extends Application {
                 etiqueta("Documento"), txtDocumento,
                 etiqueta("Teléfono"), txtTelefono,
                 etiqueta("Género"), cbGenero,
+                etiqueta("Fecha de nacimiento *"), dpFechaNacimientoPaciente,
                 etiqueta("EPS (opcional)"), txtEps,
                 etiqueta("Username"), txtUsernamePaciente,
                 etiqueta("Contraseña"), txtPasswordPaciente);
@@ -443,6 +448,7 @@ public class PiedraAzulApp extends Application {
                             || txtDocumento.getText().isBlank()
                             || txtTelefono.getText().isBlank()
                             || cbGenero.getValue() == null
+                            || dpFechaNacimientoPaciente.getValue() == null
                             || txtUsernamePaciente.getText().isBlank()
                             || txtPasswordPaciente.getText().isBlank()) {
                         lblFeedback.setText("✗ Complete todos los campos obligatorios (*)");
@@ -459,6 +465,7 @@ public class PiedraAzulApp extends Application {
                     body.put("genero", cbGenero.getValue());
                     body.put("eps", txtEps.getText().isBlank()
                             ? null : txtEps.getText().trim());
+                    body.put("fechaNacimiento", dpFechaNacimientoPaciente.getValue().toString());
                     body.put("username", txtUsernamePaciente.getText().trim());
                     body.put("password", txtPasswordPaciente.getText().trim());
 
