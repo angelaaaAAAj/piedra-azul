@@ -31,4 +31,15 @@ public class Medico {
 
     @Column(nullable = false)
     private boolean disponible = true;
+
+    // Franja horaria de atención (defecto: 08:00 - 17:00)
+    @Column(nullable = false)
+    private String franjaInicio = "08:00";
+
+    @Column(nullable = false)
+    private String franjaFin = "17:00";
+
+    // Duración de cada cita en minutos (defecto: 30)
+    @Column(nullable = false)
+    private int intervaloCitas = 30;
 }
