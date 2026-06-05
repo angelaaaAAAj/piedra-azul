@@ -17,9 +17,9 @@ public class PrimerHorarioDisponibleStrategy implements AgendamientoStrategy {
     @Override
     public LocalDateTime sugerirHorario(Medico medico, List<Cita> citasExistentes) {
 
-        // Leer configuración del médico (con fallback a valores por defecto)
-        LocalTime franjaInicio = parsearHora(medico.getFranjaInicio(), "08:00");
-        LocalTime franjaFin    = parsearHora(medico.getFranjaFin(),    "17:00");
+        // Leer configuración del médico (Convertimos temporalmente a String para que funcione con el método parsearHora de tus compañeros)
+        LocalTime franjaInicio = parsearHora(medico.getFranjaInicio() != null ? medico.getFranjaInicio().toString() : null, "08:00");
+        LocalTime franjaFin    = parsearHora(medico.getFranjaFin() != null ? medico.getFranjaFin().toString() : null,    "17:00");
         int intervalo          = medico.getIntervaloCitas() > 0
                 ? medico.getIntervaloCitas() : 30;
 

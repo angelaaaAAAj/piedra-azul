@@ -17,11 +17,10 @@ public class HorarioMasCercanoStrategy implements AgendamientoStrategy {
     @Override
     public LocalDateTime sugerirHorario(Medico medico, List<Cita> citasExistentes) {
 
-        // Leer configuración del médico (con fallback a valores por defecto)
-        LocalTime franjaInicio = parsearHora(medico.getFranjaInicio(), "08:00");
-        LocalTime franjaFin    = parsearHora(medico.getFranjaFin(),    "17:00");
-        int intervalo          = medico.getIntervaloCitas() > 0
-                ? medico.getIntervaloCitas() : 30;
+        // Leer configuración del médico (Ya son LocalTime, no necesitan parsearse)
+        LocalTime franjaInicio = medico.getFranjaInicio() != null ? medico.getFranjaInicio() : LocalTime.of(8, 0);
+        LocalTime franjaFin    = medico.getFranjaFin() != null ? medico.getFranjaFin() : LocalTime.of(17, 0);
+        int intervalo          = medico.getIntervaloCitas() > 0 ? medico.getIntervaloCitas() : 30;
 
         // Hora objetivo: mitad de la franja (ej: 08:00-17:00 → 12:30)
         // Si la franja es corta, usar 1h después del inicio
