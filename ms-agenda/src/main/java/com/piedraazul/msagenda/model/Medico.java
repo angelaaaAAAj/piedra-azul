@@ -2,6 +2,7 @@ package com.piedraazul.msagenda.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalTime;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
@@ -32,14 +33,19 @@ public class Medico {
     @Column(nullable = false)
     private boolean disponible = true;
 
-    // Franja horaria de atención (defecto: 08:00 - 17:00)
-    @Column(nullable = false)
-    private String franjaInicio = "08:00";
+    // --- CAMPOS DE CONFIGURACIÓN ---
+    @Column(name = "dias_atencion")
+    private String diasAtencion;
 
     @Column(nullable = false)
-    private String franjaFin = "17:00";
+    private LocalTime franjaInicio = LocalTime.of(8, 0); // Ahora es LocalTime
 
-    // Duración de cada cita en minutos (defecto: 30)
+    @Column(nullable = false)
+    private LocalTime franjaFin = LocalTime.of(17, 0);    // Ahora es LocalTime
+
     @Column(nullable = false)
     private int intervaloCitas = 30;
+
+    @Column(name = "ventana_semanas", nullable = false)
+    private int ventanaSemanas = 4;
 }
