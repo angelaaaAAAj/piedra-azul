@@ -51,15 +51,11 @@ public class AgendaApp extends Application {
     public void start(Stage stage) {
         this.primaryStage = stage;
 
-        // ── TÍTULO ──
         Label titulo = new Label("Gestión de Agenda - Piedra Azul");
         titulo.setFont(Font.font("System", FontWeight.BOLD, 22));
         titulo.setTextFill(Color.web("#4C1D95"));
 
-        // ── SECCIÓN BUSCAR CITAS ──
-        Label lblBuscar = etiqueta("🔍  Buscar citas por médico y fecha");
-        lblBuscar.setFont(Font.font("System", FontWeight.BOLD, 14));
-
+        // ── SECCIÓN BUSCAR ──
         txtMedicoId.setPromptText("ID del médico");
         txtMedicoId.setStyle(campoEstilo());
         txtMedicoId.setPrefHeight(36);
@@ -82,7 +78,7 @@ public class AgendaApp extends Application {
                 btnBuscar, btnCargarTodas, btnExportarCSV);
         panelBuscar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox seccionBuscar = seccion("🔍  Buscar citas", panelBuscar);
+        VBox seccionBuscar = seccion(" Buscar citas", panelBuscar);
 
         // ── TABLA ──
         TableColumn<Agenda, Long> colId = new TableColumn<>("ID");
@@ -114,7 +110,16 @@ public class AgendaApp extends Application {
         tabla.setItems(citas);
         tabla.setPrefHeight(250);
 
-        // ── SECCIÓN AGENDAR CITA ──
+        // Al seleccionar fila carga el ID en cancelar/reagendar
+        tabla.getSelectionModel().selectedItemProperty().addListener(
+                (obs, anterior, seleccionado) -> {
+                    if (seleccionado != null) {
+                        txtCitaIdAccion.setText(
+                                seleccionado.getId().toString());
+                    }
+                });
+
+        // ── SECCIÓN AGENDAR ──
         txtPacienteId.setPromptText("ID del paciente");
         txtPacienteId.setStyle(campoEstilo());
         txtPacienteId.setPrefHeight(36);
@@ -129,8 +134,15 @@ public class AgendaApp extends Application {
 
         dpFechaAgendar.setPromptText("Fecha de la cita");
         dpFechaAgendar.setPrefHeight(36);
+        // No permitir fechas anteriores a hoy
+        dpFechaAgendar.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(java.time.LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                setDisable(empty || date.isBefore(java.time.LocalDate.now()));
+            }
+        });
 
-        // Horas disponibles
         for (int h = 8; h <= 16; h++) {
             cbHoraAgendar.getItems().addAll(
                     String.format("%02d:00", h),
@@ -167,6 +179,14 @@ public class AgendaApp extends Application {
 
         dpNuevaFecha.setPromptText("Nueva fecha");
         dpNuevaFecha.setPrefHeight(36);
+        // No permitir fechas anteriores a hoy
+        dpNuevaFecha.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(java.time.LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                setDisable(empty || date.isBefore(java.time.LocalDate.now()));
+            }
+        });
 
         for (int h = 8; h <= 16; h++) {
             cbNuevaHora.getItems().addAll(
@@ -185,6 +205,11 @@ public class AgendaApp extends Application {
                 dpNuevaFecha.getValue(),
                 cbNuevaHora.getValue()));
 
+        Label lblHintTabla = new Label(
+                "Tip: haga clic en una cita de la tabla para cargar su ID automáticamente");
+        lblHintTabla.setFont(Font.font("System", 11));
+        lblHintTabla.setTextFill(Color.web("#6B7280"));
+
         GridPane formularioAccion = new GridPane();
         formularioAccion.setHgap(10);
         formularioAccion.setVgap(10);
@@ -197,13 +222,12 @@ public class AgendaApp extends Application {
         formularioAccion.add(cbNuevaHora, 3, 1);
         formularioAccion.add(btnReagendar, 4, 1);
 
-        VBox seccionAccion = seccion("✏️  Cancelar / Reagendar cita", formularioAccion);
+        VBox seccionAccion = seccion("✏️  Cancelar / Reagendar cita",
+                new VBox(8, lblHintTabla, formularioAccion));
 
-        // ── FEEDBACK ──
         lblFeedback.setFont(Font.font("System", 13));
         lblFeedback.setWrapText(true);
 
-        // ── LAYOUT PRINCIPAL ──
         VBox root = new VBox(12,
                 titulo,
                 seccionBuscar,
@@ -289,13 +313,13 @@ public class AgendaApp extends Application {
                     + "T" + cbHoraAgendar.getValue();
 
             String json = """
-                {
-                  "pacienteId": %s,
-                  "medicoId": %s,
-                  "motivo": "%s",
-                  "fechaHoraManual": "%s"
-                }
-                """.formatted(pacienteId, medicoId,
+                    {
+                      "pacienteId": %s,
+                      "medicoId": %s,
+                      "motivo": "%s",
+                      "fechaHoraManual": "%s"
+                    }
+                    """.formatted(pacienteId, medicoId,
                     txtMotivo.getText().trim(), fechaHora);
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -340,11 +364,6 @@ public class AgendaApp extends Application {
         } catch (Exception e) {
             feedback("✗ No se pudo cancelar la cita", true);
         }
-    }
-
-    private void reagendarCita(String citaId, javafx.util.converter.LocalDateStringConverter conv,
-                               String nuevaHora) {
-        feedback("✗ Ingrese el ID, nueva fecha y hora", true);
     }
 
     private void reagendarCita(String citaId,
@@ -457,7 +476,6 @@ public class AgendaApp extends Application {
                 ? Color.web("#DC2626") : Color.web("#059669"));
     }
 
-    // ── UTILIDADES DE ESTILO ──
     private VBox seccion(String titulo, javafx.scene.Node contenido) {
         Label lblTitulo = new Label(titulo);
         lblTitulo.setFont(Font.font("System", FontWeight.BOLD, 13));
