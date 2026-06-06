@@ -18,11 +18,13 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -171,7 +173,7 @@ public class AgendaApp extends Application {
 
         VBox seccionAgendar = seccion("📅  Agendar nueva cita", formularioAgendar);
 
-        // ── SECCIÓN CANCELAR / REAGENDAR ──
+        // --- SECCIÓN CANCELAR / REAGENDAR ---
         txtCitaIdAccion.setPromptText("ID de la cita");
         txtCitaIdAccion.setStyle(campoEstilo());
         txtCitaIdAccion.setPrefHeight(36);
@@ -405,6 +407,7 @@ public class AgendaApp extends Application {
             return;
         }
 
+        // Abrir FileChooser para que el usuario elija dónde guardar
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Guardar CSV");
         fileChooser.setInitialFileName("citas_" + fecha + ".csv");
@@ -413,16 +416,52 @@ public class AgendaApp extends Application {
         File archivo = fileChooser.showSaveDialog(primaryStage);
         if (archivo == null) return;
 
-        try (FileWriter writer = new FileWriter(archivo)) {
-            writer.write("ID,PacienteID,Medico,FechaHora,Motivo,Estado\n");
-            for (Agenda a : citas) {
-                writer.write(String.format("%s,%s,%s,%s,%s,%s\n",
-                        a.getId(), a.getPacienteId(), a.getMedico(),
-                        a.getFechaHora(), a.getMotivo(), a.getEstado()));
+        // Llamar al endpoint del backend y escribir la respuesta en el archivo
+        try {
+            String url = "http://localhost:8080/api/citas/export"
+                    + "?medicoId=" + medicoId
+                    + "&fecha=" + fecha;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
+
+            HttpResponse<byte[]> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() != 200) {
+                String cuerpoError = new String(response.body(), StandardCharsets.UTF_8);
+                feedback("✗ Error del servidor (" + response.statusCode() + "): "
+                        + cuerpoError, true);
+                return;
             }
+
+            byte[] contenidoCsv = response.body();
+
+            if (contenidoCsv == null || contenidoCsv.length == 0) {
+                feedback("⚠ El servidor no devolvió citas para los parámetros indicados", false);
+                return;
+            }
+
+            // Escribir con BOM UTF-8 para que Excel abra tildes correctamente
+            byte[] bom = new byte[]{ (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+            boolean yaTieneBom = contenidoCsv.length >= 3
+                    && contenidoCsv[0] == bom[0]
+                    && contenidoCsv[1] == bom[1]
+                    && contenidoCsv[2] == bom[2];
+
+            try (FileOutputStream fos = new FileOutputStream(archivo)) {
+                if (!yaTieneBom) fos.write(bom);
+                fos.write(contenidoCsv);
+                fos.flush();
+            }
+
             feedback("✓ CSV exportado en: " + archivo.getAbsolutePath(), false);
+
         } catch (Exception e) {
-            feedback("✗ No se pudo exportar el CSV", true);
+            // Muestra el error real para facilitar el diagnóstico
+            feedback("✗ No se pudo exportar el CSV: " + e.getMessage(), true);
         }
     }
 

@@ -58,6 +58,49 @@ public class CitaController {
         return ResponseEntity.ok(citaService.listarPorPaciente(pacienteId));
     }
 
+    // -- GET /api/citas/export?medicoId=X&fecha=Y --
+    // Exporta citas de un médico en una fecha a CSV (HU exportación)
+    // IMPORTANTE: debe ir ANTES de /{id} para que Spring no confunda
+    // "export" con un Long y lance NumberFormatException
+    @GetMapping("/export")
+    public void exportarCsv(
+            @RequestParam Long medicoId,
+            @RequestParam(required = false) String fecha,
+            HttpServletResponse response) {
+
+        try {
+            LocalDate localDate = (fecha != null && !fecha.isBlank())
+                    ? LocalDate.parse(fecha) : null;
+
+            response.setContentType("text/csv; charset=UTF-8");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=\"citas_medico_" + medicoId
+                            + (localDate != null ? "_" + localDate : "") + ".csv\"");
+
+            PrintWriter writer = response.getWriter();
+
+            // Cabecera del CSV
+            writer.println("Nombre Paciente,Documento,Hora,Motivo,Estado");
+
+            // Filas — se convierte el valor a String con valueOf para evitar
+            // ClassCastException cuando el Map devuelve Object
+            citaService.exportarCitasConDatosPaciente(medicoId, localDate)
+                    .forEach(fila -> writer.println(
+                            escaparCsv(fila.get("nombrePaciente")) + "," +
+                                    escaparCsv(fila.get("documento"))      + "," +
+                                    escaparCsv(fila.get("hora"))           + "," +
+                                    escaparCsv(fila.get("motivo"))         + "," +
+                                    escaparCsv(fila.get("estado"))
+                    ));
+
+            writer.flush();
+
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // -- PATCH /api/citas/{id}/cancelar --
     // Cancela una cita
     @PatchMapping("/{id}/cancelar")
@@ -86,58 +129,23 @@ public class CitaController {
 
     // -- GET /api/citas/{id} --
     // Busca cita por ID (usado por ms-historial)
+    // IMPORTANTE: va DESPUÉS de /export para evitar conflicto de rutas
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
         return citaRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    // -- GET /api/citas/export?medicoId=X&fecha=Y --
-    // Exporta citas de un médico en una fecha a CSV
-    @GetMapping("/export")
-    public void exportarCsv(
-            @RequestParam Long medicoId,
-            @RequestParam(required = false) String fecha,
-            HttpServletResponse response) {
 
-        try {
-            LocalDate localDate = (fecha != null && !fecha.isBlank())
-                    ? LocalDate.parse(fecha) : null;
-
-            response.setContentType("text/csv; charset=UTF-8");
-            response.setCharacterEncoding("UTF-8");
-            response.setHeader("Content-Disposition",
-                    "attachment; filename=\"citas_medico_" + medicoId
-                            + (localDate != null ? "_" + localDate : "") + ".csv\"");
-
-            PrintWriter writer = response.getWriter();
-
-            // Cabecera del CSV
-            writer.println("Nombre Paciente,Documento,Hora,Motivo,Estado");
-
-            // Filas
-            citaService.exportarCitasConDatosPaciente(medicoId, localDate)
-                    .forEach(fila -> writer.println(
-                            escaparCsv(fila.get("nombrePaciente")) + "," +
-                                    escaparCsv(fila.get("documento"))      + "," +
-                                    escaparCsv(fila.get("hora"))           + "," +
-                                    escaparCsv(fila.get("motivo"))         + "," +
-                                    escaparCsv(fila.get("estado"))
-                    ));
-
-            writer.flush();
-
-        } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    // Escapa valores con comas o comillas para CSV válido
-    private String escaparCsv(String valor) {
+    // Escapa valores con comas o comillas para CSV válido.
+    // Recibe Object (no String) porque el Map<String,Object> del service
+    // devuelve Object — así se evita ClassCastException.
+    private String escaparCsv(Object valor) {
         if (valor == null) return "";
-        if (valor.contains(",") || valor.contains("\"") || valor.contains("\n")) {
-            return "\"" + valor.replace("\"", "\"\"") + "\"";
+        String s = String.valueOf(valor);
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
         }
-        return valor;
+        return s;
     }
 }
