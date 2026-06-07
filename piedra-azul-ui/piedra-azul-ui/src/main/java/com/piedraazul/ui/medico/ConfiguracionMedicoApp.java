@@ -230,17 +230,10 @@ public class ConfiguracionMedicoApp extends Application {
             return;
         }
 
-        // Si no hay medicoId aún, pedirlo al usuario
+
         if (medicoId == null) {
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("ID del médico");
-            dialog.setHeaderText(null);
-            dialog.setContentText("Ingrese su ID de médico:");
-            dialog.showAndWait().ifPresent(id -> {
-                try { medicoId = Long.parseLong(id.trim()); }
-                catch (Exception ignored) {}
-            });
-            if (medicoId == null) { feedback("ID de médico inválido.", true); return; }
+            feedback("✗ No se pudo identificar el médico. Cierre sesión y vuelva a ingresar.", true);
+            return;
         }
 
         try {

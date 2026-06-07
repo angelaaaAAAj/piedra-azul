@@ -141,7 +141,9 @@ public class PiedraAzulApp extends Application {
                     Long pacienteId = data.get("pacienteId") != null
                             ? Long.parseLong(data.get("pacienteId").toString()) : null;
                     lblError.setText("");
-                    abrirMenuPrincipal(stage, rol, nombre, pacienteId);
+                    Long medicoId = data.get("medicoId") != null
+                            ? Long.parseLong(data.get("medicoId").toString()) : null;
+                    abrirMenuPrincipal(stage, rol, nombre, pacienteId, medicoId);
                 } else {
                     lblError.setText("Usuario o contraseña incorrectos.");
                 }
@@ -180,7 +182,7 @@ public class PiedraAzulApp extends Application {
     }
 
     // ---- MENÚ SEGÚN ROL -----
-    private void abrirMenuPrincipal(Stage stage, String rol, String nombre, Long pacienteId) {
+    private void abrirMenuPrincipal(Stage stage, String rol, String nombre, Long pacienteId, Long medicoId) {
         VBox menu = new VBox(16);
         menu.setAlignment(Pos.CENTER);
         menu.setPadding(new Insets(40));
@@ -212,12 +214,13 @@ public class PiedraAzulApp extends Application {
             }
             case "MEDICO_TERAPISTA" -> {
                 menu.getChildren().addAll(
-                        crearBotonMenu("📅  Agenda de Citas", () ->
+                        crearBotonMenu("📅  Mis Citas", () ->
                                 new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
-                        crearBotonMenu("⚙️  Mi Horario de Atención", () ->
-                                new com.piedraazul.ui.medico.ConfiguracionMedicoApp().start(new Stage())),
                         crearBotonMenu("📋  Historial Clínico", () ->
-                                new com.piedraazul.ui.historial.HistorialApp().start(new Stage()))
+                                new com.piedraazul.ui.historial.HistorialApp().start(new Stage())),
+                        crearBotonMenu("⚙️  Mi Disponibilidad", () ->
+                                new com.piedraazul.ui.medico.ConfiguracionMedicoApp(medicoId)
+                                        .start(new Stage()))
                 );
             }
             case "AGENDADOR" -> {
@@ -339,6 +342,25 @@ public class PiedraAzulApp extends Application {
         cbRol.setPromptText("Rol *");
         cbRol.setPrefWidth(Double.MAX_VALUE);
 
+        // Campos extra solo para MEDICO_TERAPISTA
+        ComboBox<String> cbEspecialidad = new ComboBox<>();
+        cbEspecialidad.getItems().addAll("TERAPIA_NEURAL", "QUIROPRAXIA", "FISIOTERAPIA");
+        cbEspecialidad.setPromptText("Especialidad *");
+        cbEspecialidad.setPrefWidth(Double.MAX_VALUE);
+
+        TextField txtRegistroMedico = crearCampo("Número de registro médico *");
+
+        VBox camposExtraMedico = new VBox(8,
+                etiqueta("Especialidad *"), cbEspecialidad);
+        camposExtraMedico.setVisible(false);
+        camposExtraMedico.setManaged(false);
+
+        cbRol.setOnAction(e -> {
+            boolean esMedico = "MEDICO_TERAPISTA".equals(cbRol.getValue());
+            camposExtraMedico.setVisible(esMedico);
+            camposExtraMedico.setManaged(esMedico);
+        });
+
         // -- Campos para paciente nuevo (separados) --
         TextField txtNombrePaciente    = crearCampo("Nombre *");
         TextField txtApellidoPaciente  = crearCampo("Apellido *");
@@ -374,7 +396,8 @@ public class PiedraAzulApp extends Application {
                 etiqueta("Documento *"), txtDocumentoPersonal,
                 etiqueta("Teléfono *"), txtTelefonoPersonal,
                 etiqueta("Contraseña *"), txtPassword,
-                etiqueta("Rol *"), cbRol);
+                etiqueta("Rol *"), cbRol,
+                camposExtraMedico);
 
         VBox camposPacienteNuevo = new VBox(8,
                 etiqueta("Nombre *"), txtNombrePaciente,
@@ -426,6 +449,9 @@ public class PiedraAzulApp extends Application {
                 String tipo = cbTipo.getValue();
 
                 if (tipo.equals("Personal médico / Agendador")) {
+                    boolean esMedico = "MEDICO_TERAPISTA".equals(cbRol.getValue());
+
+                    // Validación base
                     if (txtNombrePersonal.getText().isBlank()
                             || txtApellidoPersonal.getText().isBlank()
                             || txtDocumentoPersonal.getText().isBlank()
@@ -436,14 +462,59 @@ public class PiedraAzulApp extends Application {
                         lblFeedback.setTextFill(Color.web("#DC2626"));
                         return;
                     }
-                    url = "http://localhost:8080/api/auth/registro";
-                    body.put("username", txtDocumentoPersonal.getText().trim());
-                    body.put("nombre", txtNombrePersonal.getText().trim()
-                            + " " + txtApellidoPersonal.getText().trim());
-                    body.put("email", txtEmailPersonal.getText().trim());
-                    body.put("password", txtPassword.getText().trim());
-                    body.put("rol", cbRol.getValue());
 
+                    // Validación extra para médico
+                    // Poner esto:
+                    if (esMedico && cbEspecialidad.getValue() == null) {
+                        lblFeedback.setText("✗ Seleccione la especialidad");
+                        lblFeedback.setTextFill(Color.web("#DC2626"));
+                        return;
+                    }
+
+                    Long medicoIdNuevo = null;
+
+                    // Si es médico: crear primero en ms-agenda y obtener el id
+                    if (esMedico) {
+                        Map<String, Object> bodyMedico = new java.util.LinkedHashMap<>();
+                        bodyMedico.put("nombre",         txtNombrePersonal.getText().trim());
+                        bodyMedico.put("apellido",       txtApellidoPersonal.getText().trim());
+                        bodyMedico.put("registroMedico", "");
+                        bodyMedico.put("especialidad",   cbEspecialidad.getValue());
+                        bodyMedico.put("disponible",     true);
+                        bodyMedico.put("intervaloCitas", 30);
+                        bodyMedico.put("franjaInicio",   "08:00");
+                        bodyMedico.put("franjaFin",      "17:00");
+                        bodyMedico.put("ventanaSemanas", 4);
+
+                        HttpRequest reqMedico = HttpRequest.newBuilder()
+                                .uri(URI.create("http://localhost:8080/api/medicos"))
+                                .header("Content-Type", "application/json")
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        mapper.writeValueAsString(bodyMedico)))
+                                .build();
+                        HttpResponse<String> respMedico =
+                                client.send(reqMedico, HttpResponse.BodyHandlers.ofString());
+
+                        if (respMedico.statusCode() != 201) {
+                            lblFeedback.setText("✗ No se pudo crear el médico en agenda");
+                            lblFeedback.setTextFill(Color.web("#DC2626"));
+                            return;
+                        }
+                        Map<String, Object> medicoCreado = mapper.readValue(
+                                respMedico.body(), new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                        medicoIdNuevo = Long.parseLong(medicoCreado.get("id").toString());
+                    }
+
+                    // Crear usuario en ms-auth
+                    url = "http://localhost:8080/api/auth/registro";
+                    body.put("username",  txtDocumentoPersonal.getText().trim());
+                    body.put("nombre",    txtNombrePersonal.getText().trim()
+                            + " " + txtApellidoPersonal.getText().trim());
+                    body.put("email",     txtEmailPersonal.getText().trim());
+                    body.put("password",  txtPassword.getText().trim());
+                    body.put("rol",       cbRol.getValue());
+                    if (medicoIdNuevo != null)
+                        body.put("medicoId", medicoIdNuevo.toString());
                 } else if (tipo.equals("Paciente nuevo")) {
                     if (txtNombrePaciente.getText().isBlank()
                             || txtApellidoPaciente.getText().isBlank()
