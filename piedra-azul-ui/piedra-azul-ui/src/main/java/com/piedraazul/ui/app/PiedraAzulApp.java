@@ -220,7 +220,7 @@ public class PiedraAzulApp extends Application {
                         crearBotonMenu("📅  Mis Citas", () ->
                                 new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
                         crearBotonMenu("📋  Historial Clínico", () ->
-                                new com.piedraazul.ui.historial.HistorialApp().start(new Stage())),
+                                new com.piedraazul.ui.historial.HistorialApp(medicoId, nombre).start(new Stage())),
                         crearBotonMenu("⚙️  Mi Disponibilidad", () ->
                                 new com.piedraazul.ui.medico.ConfiguracionMedicoApp(medicoId)
                                         .start(new Stage()))
