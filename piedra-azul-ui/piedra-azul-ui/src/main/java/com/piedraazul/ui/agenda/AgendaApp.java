@@ -255,8 +255,7 @@ public class AgendaApp extends Application {
 
     private void cargarTodasLasCitas() {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/citas"))
+            HttpRequest request = requestAutenticado("http://localhost:8080/api/citas")
                     .GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
@@ -277,8 +276,7 @@ public class AgendaApp extends Application {
                 return;
             }
             String url = "http://localhost:8080/api/citas/medico/" + medicoId;
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url)).GET().build();
+            HttpRequest request = requestAutenticado(url).GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
             List<Map<String, Object>> lista = mapper.readValue(
@@ -324,8 +322,7 @@ public class AgendaApp extends Application {
                     """.formatted(pacienteId, medicoId,
                     txtMotivo.getText().trim(), fechaHora);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/citas"))
+            HttpRequest request = requestAutenticado("http://localhost:8080/api/citas")
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
@@ -350,9 +347,8 @@ public class AgendaApp extends Application {
             return;
         }
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/citas/"
-                            + citaId + "/cancelar"))
+            HttpRequest request = requestAutenticado(
+                    "http://localhost:8080/api/citas/" + citaId + "/cancelar")
                     .method("PATCH", HttpRequest.BodyPublishers.noBody())
                     .build();
             HttpResponse<String> response = httpClient.send(request,
@@ -378,9 +374,8 @@ public class AgendaApp extends Application {
         try {
             String fechaHora = nuevaFecha.toString() + "T" + nuevaHora;
             String json = "{\"fechaHora\": \"" + fechaHora + "\"}";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/citas/"
-                            + citaId + "/reagendar"))
+            HttpRequest request = requestAutenticado(
+                    "http://localhost:8080/api/citas/" + citaId + "/reagendar")
                     .header("Content-Type", "application/json")
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
                     .build();
@@ -422,10 +417,7 @@ public class AgendaApp extends Application {
                     + "?medicoId=" + medicoId
                     + "&fecha=" + fecha;
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .GET()
-                    .build();
+            HttpRequest request = requestAutenticado(url).GET().build();
 
             HttpResponse<byte[]> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.ofByteArray());
@@ -465,8 +457,7 @@ public class AgendaApp extends Application {
 
     private void cargarMedicos() {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/medicos"))
+            HttpRequest request = requestAutenticado("http://localhost:8080/api/medicos")
                     .GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
@@ -553,6 +544,15 @@ public class AgendaApp extends Application {
                 -fx-padding: 6 10;
                 -fx-font-size: 13px;
                 """;
+    }
+    private HttpRequest.Builder requestAutenticado(String url) {
+        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        return builder;
     }
 
     public static void main(String[] args) {

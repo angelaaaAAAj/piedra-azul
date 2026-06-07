@@ -27,6 +27,8 @@ public class PiedraAzulApp extends Application {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
+    private static String tokenSesion = null;
+    public static String getToken() { return tokenSesion; }
 
     @Override
     public void start(Stage stage) {
@@ -143,6 +145,7 @@ public class PiedraAzulApp extends Application {
                     lblError.setText("");
                     Long medicoId = data.get("medicoId") != null
                             ? Long.parseLong(data.get("medicoId").toString()) : null;
+                    tokenSesion = (String) data.get("token");
                     abrirMenuPrincipal(stage, rol, nombre, pacienteId, medicoId);
                 } else {
                     lblError.setText("Usuario o contraseña incorrectos.");
@@ -254,7 +257,10 @@ public class PiedraAzulApp extends Application {
                 -fx-background-radius: 8;
                 -fx-cursor: hand;
                 """);
-        btnCerrar.setOnAction(e -> start(stage));
+        btnCerrar.setOnAction(e -> {
+            tokenSesion = null;
+            start(stage);
+        });
         menu.getChildren().add(btnCerrar);
 
         stage.setScene(new Scene(menu, 700, 460));

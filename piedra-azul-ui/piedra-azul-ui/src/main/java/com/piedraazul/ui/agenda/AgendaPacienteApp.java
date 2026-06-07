@@ -273,9 +273,11 @@ public class AgendaPacienteApp extends Application {
             if (bt == ButtonType.YES) {
                 new Thread(() -> {
                     try {
+                        String token1 = com.piedraazul.ui.app.PiedraAzulApp.getToken();
                         HttpRequest req = HttpRequest.newBuilder()
                                 .uri(URI.create("http://localhost:8080/api/citas/"
                                         + cita.getId() + "/cancelar"))
+                                .header("Authorization", "Bearer " + (token1 != null ? token1 : ""))
                                 .method("PATCH", HttpRequest.BodyPublishers.noBody())
                                 .build();
                         HttpResponse<String> resp =
@@ -355,9 +357,10 @@ public class AgendaPacienteApp extends Application {
             new Thread(() -> {
                 try {
                     // Configuración del médico
+                    String token2 = com.piedraazul.ui.app.PiedraAzulApp.getToken();
                     HttpRequest reqMedico = HttpRequest.newBuilder()
-                            .uri(URI.create("http://localhost:8080/api/medicos/"
-                                    + cita.getMedicoId()))
+                            .uri(URI.create("http://localhost:8080/api/medicos/" + cita.getMedicoId()))
+                            .header("Authorization", "Bearer " + (token2 != null ? token2 : ""))
                             .GET().build();
                     HttpResponse<String> respMedico =
                             http.send(reqMedico, HttpResponse.BodyHandlers.ofString());
@@ -370,9 +373,7 @@ public class AgendaPacienteApp extends Application {
                             medico.getOrDefault("intervaloCitas", "30").toString());
 
                     // Citas ya ocupadas ese día (excluyendo la que se está reagendando)
-                    HttpRequest reqCitas = HttpRequest.newBuilder()
-                            .uri(URI.create("http://localhost:8080/api/citas/medico/"
-                                    + cita.getMedicoId()))
+                    HttpRequest reqCitas = autenticado("http://localhost:8080/api/citas/medico/" + cita.getMedicoId())
                             .GET().build();
                     HttpResponse<String> respCitas =
                             http.send(reqCitas, HttpResponse.BodyHandlers.ofString());
@@ -462,10 +463,12 @@ public class AgendaPacienteApp extends Application {
 
             new Thread(() -> {
                 try {
+                    String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
                     HttpRequest req = HttpRequest.newBuilder()
                             .uri(URI.create("http://localhost:8080/api/citas/"
                                     + cita.getId() + "/reagendar"))
                             .header("Content-Type", "application/json")
+                            .header("Authorization", "Bearer " + (token != null ? token : ""))
                             .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
                             .build();
                     HttpResponse<String> resp =
@@ -512,8 +515,7 @@ public class AgendaPacienteApp extends Application {
     private void cargarMedicos() {
         new Thread(() -> {
             try {
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/api/medicos/disponibles"))
+                HttpRequest req = autenticado("http://localhost:8080/api/medicos/disponibles")
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
@@ -540,9 +542,7 @@ public class AgendaPacienteApp extends Application {
         if (pacienteId == null) return;
         new Thread(() -> {
             try {
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/api/citas/paciente/"
-                                + pacienteId))
+                HttpRequest req = autenticado("http://localhost:8080/api/citas/paciente/" + pacienteId)
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
@@ -591,8 +591,7 @@ public class AgendaPacienteApp extends Application {
 
         new Thread(() -> {
             try {
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/api/citas/medico/" + medicoId))
+                HttpRequest req = autenticado("http://localhost:8080/api/citas/medico/" + medicoId)
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
@@ -693,8 +692,7 @@ public class AgendaPacienteApp extends Application {
 
         new Thread(() -> {
             try {
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/api/citas"))
+                HttpRequest req = autenticado("http://localhost:8080/api/citas")
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json))
                         .build();
@@ -869,6 +867,14 @@ public class AgendaPacienteApp extends Application {
                 setText(null);
             }
         }
+    }
+
+    private HttpRequest.Builder autenticado(String url) {
+        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+        HttpRequest.Builder b = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+        if (token != null) b.header("Authorization", "Bearer " + token);
+        return b;
     }
 
     public static void main(String[] args) {

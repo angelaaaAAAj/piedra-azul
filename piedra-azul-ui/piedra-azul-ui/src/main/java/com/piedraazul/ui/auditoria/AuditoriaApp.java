@@ -187,8 +187,7 @@ public class AuditoriaApp extends Application {
         try {
             HttpClient client = HttpClient.newHttpClient();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
+            HttpRequest request = requestAutenticado(url)
                     .GET()
                     .build();
 
@@ -223,6 +222,16 @@ public class AuditoriaApp extends Application {
         alert.setHeaderText(null);
         alert.setContentText(mensaje);
         alert.showAndWait();
+    }
+
+    private HttpRequest.Builder requestAutenticado(String url) {
+        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        return builder;
     }
 
     public static void main(String[] args) {

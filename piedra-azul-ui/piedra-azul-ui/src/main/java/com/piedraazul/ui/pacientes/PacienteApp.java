@@ -247,8 +247,7 @@ public class PacienteApp extends Application {
 
     private void cargarPacientes() {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/pacientes"))
+            HttpRequest request = requestAutenticado("http://localhost:8080/api/pacientes")
                     .GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
@@ -295,17 +294,16 @@ public class PacienteApp extends Application {
                             ? "null" : "\"" + txtEps.getText().trim() + "\""
             );
 
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = requestAutenticado(
+                    pacienteEditandoId == null
+                            ? "http://localhost:8080/api/pacientes/registro"
+                            : "http://localhost:8080/api/pacientes/" + pacienteEditandoId)
                     .header("Content-Type", "application/json");
 
             if (pacienteEditandoId == null) {
-                builder.uri(URI.create(
-                                "http://localhost:8080/api/pacientes/registro"))
-                        .POST(HttpRequest.BodyPublishers.ofString(json));
+                builder.POST(HttpRequest.BodyPublishers.ofString(json));
             } else {
-                builder.uri(URI.create(
-                                "http://localhost:8080/api/pacientes/" + pacienteEditandoId))
-                        .PUT(HttpRequest.BodyPublishers.ofString(json));
+                builder.PUT(HttpRequest.BodyPublishers.ofString(json));
             }
 
             HttpResponse<String> response = httpClient.send(builder.build(),
@@ -334,9 +332,8 @@ public class PacienteApp extends Application {
             return;
         }
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/pacientes/documento/"
-                            + documento))
+            HttpRequest request = requestAutenticado(
+                    "http://localhost:8080/api/pacientes/documento/" + documento)
                     .GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
@@ -367,9 +364,8 @@ public class PacienteApp extends Application {
         }
         try {
             String json = "{\"estado\": \"" + estado + "\"}";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/pacientes/"
-                            + pacienteEditandoId + "/estado"))
+            HttpRequest request = requestAutenticado(
+                    "http://localhost:8080/api/pacientes/" + pacienteEditandoId + "/estado")
                     .header("Content-Type", "application/json")
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
                     .build();
@@ -457,6 +453,15 @@ public class PacienteApp extends Application {
                 -fx-cursor: hand;
                 -fx-padding: 8 16;
                 """;
+    }
+    private HttpRequest.Builder requestAutenticado(String url) {
+        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        return builder;
     }
 
     public static void main(String[] args) {

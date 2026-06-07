@@ -1,6 +1,7 @@
 package com.piedraazul.msauth.controller;
 
 import com.piedraazul.msauth.model.Usuario;
+import com.piedraazul.msauth.security.JwtTokenProvider;
 import com.piedraazul.msauth.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -8,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,11 +20,11 @@ public class AuthController {
 
     private final UsuarioService usuarioService;
     private final RestTemplate restTemplate;
+    private final JwtTokenProvider jwtTokenProvider;
 
     private static final String MS_PACIENTES_URL = "http://localhost:8082";
 
     // -- POST /api/auth/registro --
-    // Registro de personal (médico, agendador, administrador)
     @PostMapping("/registro")
     public ResponseEntity<?> registrar(@RequestBody Map<String, String> body) {
         try {
@@ -44,13 +46,10 @@ public class AuthController {
     }
 
     // -- POST /api/auth/registro/paciente-nuevo --
-    // Registro de paciente nuevo: crea paciente en ms-pacientes
-    // y usuario en ms-auth en una sola operación
     @PostMapping("/registro/paciente-nuevo")
     public ResponseEntity<?> registrarPacienteNuevo(
             @RequestBody Map<String, Object> body) {
         try {
-            // 1. Crear paciente en ms-pacientes
             String urlPaciente = MS_PACIENTES_URL + "/api/pacientes/registro";
             ResponseEntity<Map> respPaciente = restTemplate.postForEntity(
                     urlPaciente, body, Map.class);
@@ -64,7 +63,6 @@ public class AuthController {
             Long pacienteId = Long.parseLong(
                     respPaciente.getBody().get("id").toString());
 
-            // 2. Crear usuario en ms-auth con rol PACIENTE
             Usuario usuario = usuarioService.crearUsuario(
                     body.get("username").toString(),
                     body.get("password").toString(),
@@ -85,15 +83,12 @@ public class AuthController {
     }
 
     // -- POST /api/auth/registro/paciente-existente --
-    // Registro de paciente que ya existe en el sistema:
-    // verifica documento y crea solo el usuario
     @PostMapping("/registro/paciente-existente")
     public ResponseEntity<?> registrarPacienteExistente(
             @RequestBody Map<String, String> body) {
         try {
             String documento = body.get("numeroDocumento");
 
-            // 1. Verificar que el paciente existe en ms-pacientes
             String urlBuscar = MS_PACIENTES_URL
                     + "/api/pacientes/documento/" + documento;
             ResponseEntity<Map> respPaciente = restTemplate.getForEntity(
@@ -109,14 +104,12 @@ public class AuthController {
             Long pacienteId = Long.parseLong(
                     respPaciente.getBody().get("id").toString());
 
-            // 2. Verificar que no tenga ya un usuario
             if (usuarioService.existePacienteConUsuario(pacienteId)) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error",
                                 "Este paciente ya tiene una cuenta registrada"));
             }
 
-            // 3. Crear usuario en ms-auth con rol PACIENTE
             String nombre = respPaciente.getBody().get("nombre")
                     + " " + respPaciente.getBody().get("apellido");
             Usuario usuario = usuarioService.crearUsuario(
@@ -141,16 +134,26 @@ public class AuthController {
     }
 
     // -- POST /api/auth/login --
+    // Ahora genera y retorna un JWT además de los datos del usuario
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
         return usuarioService.login(body.get("username"), body.get("password"))
                 .map(u -> {
-                    Map<String, Object> response = new java.util.HashMap<>();
-                    response.put("mensaje", "Login exitoso");
-                    response.put("username", u.getUsername());
-                    response.put("rol", u.getRol().name());
-                    response.put("nombre", u.getNombre());
-                    response.put("medicoId", u.getMedicoId());
+                    // Generar el token JWT con los claims del usuario
+                    String token = jwtTokenProvider.generarToken(
+                            u.getUsername(),
+                            u.getRol().name(),
+                            u.getPacienteId(),
+                            u.getMedicoId()
+                    );
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("token",      token);           //
+                    response.put("mensaje",    "Login exitoso");
+                    response.put("username",   u.getUsername());
+                    response.put("rol",        u.getRol().name());
+                    response.put("nombre",     u.getNombre());
+                    response.put("medicoId",   u.getMedicoId());
                     response.put("pacienteId", u.getPacienteId());
                     return ResponseEntity.ok(response);
                 })
