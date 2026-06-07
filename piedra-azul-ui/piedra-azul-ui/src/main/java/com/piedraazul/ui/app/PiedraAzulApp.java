@@ -138,7 +138,10 @@ public class PiedraAzulApp extends Application {
                     String rol = (String) data.get("rol");
                     String nombre = (String) data.get("nombre");
                     lblError.setText("");
-                    abrirMenuPrincipal(stage, rol, nombre);
+                    Long pacienteId = data.get("pacienteId") != null
+                            ? Long.parseLong(data.get("pacienteId").toString()) : null;
+                    lblError.setText("");
+                    abrirMenuPrincipal(stage, rol, nombre, pacienteId);
                 } else {
                     lblError.setText("Usuario o contraseña incorrectos.");
                 }
@@ -177,7 +180,7 @@ public class PiedraAzulApp extends Application {
     }
 
     // ---- MENÚ SEGÚN ROL -----
-    private void abrirMenuPrincipal(Stage stage, String rol, String nombre) {
+    private void abrirMenuPrincipal(Stage stage, String rol, String nombre, Long pacienteId) {
         VBox menu = new VBox(16);
         menu.setAlignment(Pos.CENTER);
         menu.setPadding(new Insets(40));
@@ -209,8 +212,10 @@ public class PiedraAzulApp extends Application {
             }
             case "MEDICO_TERAPISTA" -> {
                 menu.getChildren().addAll(
-                        crearBotonMenu("📅  Mis Citas", () ->
+                        crearBotonMenu("📅  Agenda de Citas", () ->
                                 new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
+                        crearBotonMenu("⚙️  Mi Horario de Atención", () ->
+                                new com.piedraazul.ui.medico.ConfiguracionMedicoApp().start(new Stage())),
                         crearBotonMenu("📋  Historial Clínico", () ->
                                 new com.piedraazul.ui.historial.HistorialApp().start(new Stage()))
                 );
@@ -226,7 +231,8 @@ public class PiedraAzulApp extends Application {
             case "PACIENTE" -> {
                 menu.getChildren().addAll(
                         crearBotonMenu("📅  Mis Citas", () ->
-                                new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
+                                new com.piedraazul.ui.agenda.AgendaPacienteApp(pacienteId)
+                                        .start(new Stage())),
                         crearBotonMenu("📋  Mi Historial", () ->
                                 new com.piedraazul.ui.historial.HistorialApp().start(new Stage()))
                 );
@@ -333,10 +339,10 @@ public class PiedraAzulApp extends Application {
         cbRol.setPromptText("Rol *");
         cbRol.setPrefWidth(Double.MAX_VALUE);
 
-        // ── Campos para paciente nuevo (separados) ──
+        // -- Campos para paciente nuevo (separados) --
         TextField txtNombrePaciente    = crearCampo("Nombre *");
         TextField txtApellidoPaciente  = crearCampo("Apellido *");
-        TextField txtEmailPaciente     = crearCampo("Email (opcional)");
+        TextField txtEmailPaciente     = crearCampo("Email *");
         TextField txtDocumentoPaciente = crearCampo("Número de documento *");
         TextField txtTelefonoPaciente  = crearCampo("Teléfono *");
         ComboBox<String> cbGenero = new ComboBox<>();

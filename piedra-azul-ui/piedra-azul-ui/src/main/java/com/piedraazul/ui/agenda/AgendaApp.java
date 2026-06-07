@@ -410,9 +410,9 @@ public class AgendaApp extends Application {
         // Abrir FileChooser para que el usuario elija dónde guardar
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Guardar CSV");
-        fileChooser.setInitialFileName("citas_" + fecha + ".csv");
+        fileChooser.setInitialFileName("citas_" + fecha + ".xlsx");
         fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("CSV", "*.csv"));
+                new FileChooser.ExtensionFilter("Excel (*.xlsx)", "*.xlsx"));
         File archivo = fileChooser.showSaveDialog(primaryStage);
         if (archivo == null) return;
 
@@ -444,19 +444,17 @@ public class AgendaApp extends Application {
                 return;
             }
 
-            // Escribir con BOM UTF-8 para que Excel abra tildes correctamente
             byte[] bom = new byte[]{ (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
             boolean yaTieneBom = contenidoCsv.length >= 3
                     && contenidoCsv[0] == bom[0]
                     && contenidoCsv[1] == bom[1]
                     && contenidoCsv[2] == bom[2];
 
+            // Escribir los bytes directamente — xlsx es binario, no lleva BOM
             try (FileOutputStream fos = new FileOutputStream(archivo)) {
-                if (!yaTieneBom) fos.write(bom);
                 fos.write(contenidoCsv);
                 fos.flush();
             }
-
             feedback("✓ CSV exportado en: " + archivo.getAbsolutePath(), false);
 
         } catch (Exception e) {

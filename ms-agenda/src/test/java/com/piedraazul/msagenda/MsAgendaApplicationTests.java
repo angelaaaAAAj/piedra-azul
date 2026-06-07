@@ -49,7 +49,7 @@ class CitaServiceTest {
     @InjectMocks
     private CitaService citaService;
 
-    // ── Test 1: Cancelar cita cambia estado correctamente ──
+    // -- Test 1: Cancelar cita cambia estado correctamente --
     @Test
     void testCancelar_CitaExistente_CambiaEstado() {
         Cita cita = new Cita();
@@ -65,7 +65,7 @@ class CitaServiceTest {
         verify(citaRepository, times(1)).save(cita);
     }
 
-    // ── Test 2: Cancelar cita inexistente lanza excepción ──
+    // -- Test 2: Cancelar cita inexistente lanza excepción --
     @Test
     void testCancelar_CitaInexistente_LanzaExcepcion() {
         when(citaRepository.findById(99L)).thenReturn(Optional.empty());
@@ -74,7 +74,7 @@ class CitaServiceTest {
                 citaService.cancelar(99L));
     }
 
-    // ── Test 3: Médico no disponible lanza excepción ──
+    // -- Test 3: Médico no disponible lanza excepción --
     @Test
     void testAgendar_MedicoNoDisponible_LanzaExcepcion() {
         Medico medico = new Medico();
@@ -94,7 +94,7 @@ class CitaServiceTest {
                 citaService.agendar(dto));
     }
 
-    // ── Test 4: Listar citas por paciente ──
+    // -- Test 4: Listar citas por paciente --
     @Test
     void testListarPorPaciente_RetornaListaCorrectamente() {
         Cita cita = new Cita();

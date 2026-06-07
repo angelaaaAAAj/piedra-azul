@@ -4,15 +4,18 @@ import com.piedraazul.msagenda.dto.CitaDTO;
 import com.piedraazul.msagenda.model.Cita;
 import com.piedraazul.msagenda.repository.CitaRepository;
 import com.piedraazul.msagenda.service.CitaService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.PrintWriter;
-import java.time.LocalDate;
 
+import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -59,11 +62,13 @@ public class CitaController {
     }
 
     // -- GET /api/citas/export?medicoId=X&fecha=Y --
-    // Exporta citas de un médico en una fecha a CSV (HU exportación)
-    // IMPORTANTE: debe ir ANTES de /{id} para que Spring no confunda
-    // "export" con un Long y lance NumberFormatException
+    // Exporta citas de un médico en una fecha a Excel (.xlsx) con formato:
+    //   - Encabezados con fondo morado claro (#C084FC) y texto blanco en negrita
+    //   - Columnas con ancho automático ajustado al contenido
+    //   - Filas de datos con fondo blanco y bordes finos
+    // IMPORTANTE: va antes de /{id} para que Spring no confunda "export" con un Long
     @GetMapping("/export")
-    public void exportarCsv(
+    public void exportarExcel(
             @RequestParam Long medicoId,
             @RequestParam(required = false) String fecha,
             HttpServletResponse response) {
@@ -72,33 +77,96 @@ public class CitaController {
             LocalDate localDate = (fecha != null && !fecha.isBlank())
                     ? LocalDate.parse(fecha) : null;
 
-            response.setContentType("text/csv; charset=UTF-8");
-            response.setCharacterEncoding("UTF-8");
+            List<Map<String, String>> filas =
+                    citaService.exportarCitasConDatosPaciente(medicoId, localDate);
+
+            // Nombre del archivo
+            String nombreArchivo = "citas_medico_" + medicoId
+                    + (localDate != null ? "_" + localDate : "") + ".xlsx";
+
+            response.setContentType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setHeader("Content-Disposition",
-                    "attachment; filename=\"citas_medico_" + medicoId
-                            + (localDate != null ? "_" + localDate : "") + ".csv\"");
+                    "attachment; filename=\"" + nombreArchivo + "\"");
 
-            PrintWriter writer = response.getWriter();
+            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
 
-            // Cabecera del CSV
-            writer.println("Nombre Paciente,Documento,Hora,Motivo,Estado");
+                Sheet sheet = workbook.createSheet("Citas");
 
-            // Filas — se convierte el valor a String con valueOf para evitar
-            // ClassCastException cuando el Map devuelve Object
-            citaService.exportarCitasConDatosPaciente(medicoId, localDate)
-                    .forEach(fila -> writer.println(
-                            escaparCsv(fila.get("nombrePaciente")) + "," +
-                                    escaparCsv(fila.get("documento"))      + "," +
-                                    escaparCsv(fila.get("hora"))           + "," +
-                                    escaparCsv(fila.get("motivo"))         + "," +
-                                    escaparCsv(fila.get("estado"))
-                    ));
+                // ── Estilo encabezado: fondo morado claro #C084FC, texto blanco negrita ──
+                CellStyle estiloEncabezado = workbook.createCellStyle();
+                // Color morado claro: RGB 192, 132, 252
+                XSSFColor moradoClaro = new XSSFColor(
+                        new byte[]{ (byte) 192, (byte) 132, (byte) 252 }, null);
+                ((org.apache.poi.xssf.usermodel.XSSFCellStyle) estiloEncabezado)
+                        .setFillForegroundColor(moradoClaro);
+                estiloEncabezado.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-            writer.flush();
+                Font fuenteEncabezado = workbook.createFont();
+                fuenteEncabezado.setBold(true);
+                fuenteEncabezado.setColor(IndexedColors.WHITE.getIndex());
+                fuenteEncabezado.setFontHeightInPoints((short) 11);
+                estiloEncabezado.setFont(fuenteEncabezado);
+                estiloEncabezado.setAlignment(HorizontalAlignment.CENTER);
+                setBordeFino(estiloEncabezado);
 
+                // ── Estilo datos: fondo blanco, borde fino ──
+                CellStyle estiloDatos = workbook.createCellStyle();
+                estiloDatos.setFillForegroundColor(IndexedColors.WHITE.getIndex());
+                estiloDatos.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                setBordeFino(estiloDatos);
+
+                // ── Fila de encabezados ──
+                String[] columnas = {
+                        "Nombre Paciente", "Documento", "Hora", "Motivo", "Estado"
+                };
+                Row filaEncabezado = sheet.createRow(0);
+                filaEncabezado.setHeightInPoints(20);
+                for (int i = 0; i < columnas.length; i++) {
+                    Cell celda = filaEncabezado.createCell(i);
+                    celda.setCellValue(columnas[i]);
+                    celda.setCellStyle(estiloEncabezado);
+                }
+
+                // ── Filas de datos ──
+                String[] claves = {
+                        "nombrePaciente", "documento", "hora", "motivo", "estado"
+                };
+                int numFila = 1;
+                for (Map<String, String> fila : filas) {
+                    Row row = sheet.createRow(numFila++);
+                    for (int i = 0; i < claves.length; i++) {
+                        Cell celda = row.createCell(i);
+                        Object valor = fila.get(claves[i]);
+                        celda.setCellValue(valor != null ? String.valueOf(valor) : "");
+                        celda.setCellStyle(estiloDatos);
+                    }
+                }
+
+                // ── Ajustar ancho de columnas al contenido ──
+                for (int i = 0; i < columnas.length; i++) {
+                    sheet.autoSizeColumn(i);
+                    // Agregar un poco de margen extra
+                    sheet.setColumnWidth(i, sheet.getColumnWidth(i) + 1024);
+                }
+
+                workbook.write(response.getOutputStream());
+                response.getOutputStream().flush();
+            }
+
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // Aplica borde fino en los cuatro lados de un estilo de celda
+    private void setBordeFino(CellStyle estilo) {
+        estilo.setBorderTop(BorderStyle.THIN);
+        estilo.setBorderBottom(BorderStyle.THIN);
+        estilo.setBorderLeft(BorderStyle.THIN);
+        estilo.setBorderRight(BorderStyle.THIN);
     }
 
     // -- PATCH /api/citas/{id}/cancelar --
@@ -135,17 +203,5 @@ public class CitaController {
         return citaRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
-    }
-
-    // Escapa valores con comas o comillas para CSV válido.
-    // Recibe Object (no String) porque el Map<String,Object> del service
-    // devuelve Object — así se evita ClassCastException.
-    private String escaparCsv(Object valor) {
-        if (valor == null) return "";
-        String s = String.valueOf(valor);
-        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
-            return "\"" + s.replace("\"", "\"\"") + "\"";
-        }
-        return s;
     }
 }

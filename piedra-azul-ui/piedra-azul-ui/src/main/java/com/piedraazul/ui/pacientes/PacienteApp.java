@@ -45,7 +45,7 @@ public class PacienteApp extends Application {
     @Override
     public void start(Stage stage) {
 
-        // ── TÍTULO ──
+        // -- TÍTULO --
         Label titulo = new Label("Gestión de Pacientes");
         titulo.setFont(Font.font("System", FontWeight.BOLD, 22));
         titulo.setTextFill(Color.web("#4C1D95"));
@@ -56,7 +56,7 @@ public class PacienteApp extends Application {
 
         VBox encabezado = new VBox(4, titulo, subtitulo);
 
-        // ── TABLA ──
+        // -- TABLA --
         TableColumn<Paciente, Long> colId = new TableColumn<>("ID");
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colId.setPrefWidth(50);
@@ -98,7 +98,7 @@ public class PacienteApp extends Application {
                     }
                 });
 
-        // ── BUSCADOR ──
+        // -- BUSCADOR --
         txtBuscarDocumento.setPromptText("Buscar por número de documento...");
         txtBuscarDocumento.setStyle(campoEstilo());
         txtBuscarDocumento.setPrefWidth(280);
@@ -114,7 +114,7 @@ public class PacienteApp extends Application {
         HBox buscador = new HBox(10, txtBuscarDocumento, btnBuscar, btnMostrarTodos);
         buscador.setAlignment(Pos.CENTER_LEFT);
 
-        // ── PANEL FORMULARIO ──
+        // -- PANEL FORMULARIO --
         lblEstadoFormulario.setFont(Font.font("System", FontWeight.BOLD, 12));
         lblEstadoFormulario.setTextFill(Color.web("#7B2FBE"));
         lblEstadoFormulario.setText("Nuevo paciente");
@@ -171,7 +171,7 @@ public class PacienteApp extends Application {
 
         HBox botonesFormulario = new HBox(10, btnGuardar, btnLimpiar);
 
-        // ── CAMBIAR ESTADO ──
+        // -- CAMBIAR ESTADO --
         cbNuevoEstado.getItems().addAll(
                 "ACTIVO", "INACTIVO", "EN_TRATAMIENTO", "DADO_DE_ALTA");
         cbNuevoEstado.setPromptText("Nuevo estado");
@@ -189,7 +189,7 @@ public class PacienteApp extends Application {
         HBox panelEstado = new HBox(10, cbNuevoEstado, btnCambiarEstado);
         panelEstado.setAlignment(Pos.CENTER_LEFT);
 
-        // ── PANEL IZQUIERDO (formulario) ──
+        // -- PANEL IZQUIERDO (formulario) --
         VBox panelFormulario = new VBox(10,
                 lblEstadoFormulario,
                 formulario,
@@ -207,7 +207,7 @@ public class PacienteApp extends Application {
                 -fx-background-radius: 8;
                 """);
 
-        // ── PANEL DERECHO (tabla) ──
+        // -- PANEL DERECHO (tabla) --
         Label lblTabla = new Label("Pacientes registrados");
         lblTabla.setFont(Font.font("System", FontWeight.BOLD, 13));
         lblTabla.setTextFill(Color.web("#4C1D95"));

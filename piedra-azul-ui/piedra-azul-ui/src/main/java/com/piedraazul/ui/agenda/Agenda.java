@@ -8,6 +8,7 @@ public class Agenda {
     private String fechaHora;
     private String motivo;
     private String estado;
+    private Long medicoId;
 
     public Agenda() {}
 
@@ -28,4 +29,7 @@ public class Agenda {
 
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
+
+    public Long getMedicoId() { return medicoId; }
+    public void setMedicoId(Long medicoId) { this.medicoId = medicoId; }
 }

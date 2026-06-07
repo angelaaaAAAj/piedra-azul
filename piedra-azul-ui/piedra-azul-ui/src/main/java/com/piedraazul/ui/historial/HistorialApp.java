@@ -72,6 +72,38 @@ public class HistorialApp extends Application {
 
         tabla.getColumns().addAll(colId, colPaciente, colTipo, colDesc, colFecha, colRegistrado);
 
+        // ── SECCIÓN REAGENDAMIENTOS ──
+        // Declaradas aquí para que btnCargarCita y VBox root las puedan usar
+        Label lblReagendamientos = new Label("Reagendamientos de la cita buscada");
+        lblReagendamientos.setStyle("""
+                -fx-font-size: 14px;
+                -fx-font-weight: bold;
+                -fx-text-fill: #4C1D95;
+                """);
+
+        TableView<ReagendamientoEntry> tablaReagendamientos = new TableView<>();
+
+        TableColumn<ReagendamientoEntry, String> colFechaAnt = new TableColumn<>("Fecha Anterior");
+        colFechaAnt.setCellValueFactory(c -> c.getValue().fechaAnteriorProperty());
+        colFechaAnt.setPrefWidth(160);
+
+        TableColumn<ReagendamientoEntry, String> colFechaNueva = new TableColumn<>("Fecha Nueva");
+        colFechaNueva.setCellValueFactory(c -> c.getValue().fechaNuevaProperty());
+        colFechaNueva.setPrefWidth(160);
+
+        TableColumn<ReagendamientoEntry, String> colMotivo = new TableColumn<>("Motivo");
+        colMotivo.setCellValueFactory(c -> c.getValue().motivoProperty());
+        colMotivo.setPrefWidth(180);
+
+        TableColumn<ReagendamientoEntry, String> colResponsable = new TableColumn<>("Responsable");
+        colResponsable.setCellValueFactory(c -> c.getValue().responsableProperty());
+        colResponsable.setPrefWidth(130);
+
+        tablaReagendamientos.getColumns().addAll(
+                colFechaAnt, colFechaNueva, colMotivo, colResponsable);
+        tablaReagendamientos.setPrefHeight(180);
+        tablaReagendamientos.setPlaceholder(new Label("Sin reagendamientos"));
+
         HistorialController controller = new HistorialController();
 
         btnCargarPaciente.setOnAction(e -> {
@@ -86,22 +118,25 @@ public class HistorialApp extends Application {
 
         btnCargarCita.setOnAction(e -> {
             try {
-                controller.cargarPorCitaId(
-                        Long.parseLong(txtCitaId.getText().trim()), tabla, lblFeedback, lblTotal);
+                long id = Long.parseLong(txtCitaId.getText().trim());
+                controller.cargarPorCitaId(id, tabla, lblFeedback, lblTotal);
+                // Cargar también los reagendamientos de esa cita
+                controller.cargarReagendamientos(id, tablaReagendamientos, lblFeedback);
             } catch (NumberFormatException ex) {
                 lblFeedback.setText("ID inválido");
                 lblFeedback.setStyle("-fx-text-fill: red;");
             }
         });
 
-        VBox root = new VBox(15, titulo, busqueda, lblFeedback, lblTotal, tabla);
+        VBox root = new VBox(15, titulo, busqueda, lblFeedback, lblTotal, tabla,
+                lblReagendamientos, tablaReagendamientos);
         root.setStyle("""
                 -fx-padding: 20;
                 -fx-background-color: #F4F6F9;
                 """);
 
         stage.setTitle("Historial Clínico");
-        stage.setScene(new Scene(root, 900, 500));
+        stage.setScene(new Scene(root, 900, 600));
         stage.show();
     }
 

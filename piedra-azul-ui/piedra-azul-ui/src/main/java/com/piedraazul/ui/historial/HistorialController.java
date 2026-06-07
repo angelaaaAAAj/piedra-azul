@@ -83,4 +83,27 @@ public class HistorialController {
             lbl.setStyle(error ? "-fx-text-fill: red;" : "-fx-text-fill: green;");
         }
     }
+    public void cargarReagendamientos(Long citaId,
+                                      TableView<ReagendamientoEntry> tabla, Label lblFeedback) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(API_URL + "/cambios/cita/" + citaId))
+                    .GET().build();
+            HttpResponse<String> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            List<Map<String, Object>> lista =
+                    mapper.readValue(response.body(), new TypeReference<>() {});
+            var registros = FXCollections.observableArrayList(
+                    lista.stream().map(m -> new ReagendamientoEntry(
+                            m.get("fechaAnterior") != null ? m.get("fechaAnterior").toString() : "",
+                            m.get("fechaNueva")    != null ? m.get("fechaNueva").toString()    : "",
+                            m.get("motivo")        != null ? m.get("motivo").toString()        : "",
+                            m.get("responsable")   != null ? m.get("responsable").toString()   : ""
+                    )).toList());
+            tabla.setItems(registros);
+            feedback("Reagendamientos cargados para cita " + citaId, false, lblFeedback);
+        } catch (Exception e) {
+            feedback("Error: " + e.getMessage(), true, lblFeedback);
+        }
+    }
 }

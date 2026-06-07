@@ -42,4 +42,12 @@ public class Medico {
     // Duración de cada cita en minutos (defecto: 30)
     @Column(nullable = false)
     private int intervaloCitas = 30;
+
+    // Días de atención en formato CSV (p.ej. "LUNES,MARTES,...")
+    @Column
+    private String diasAtencion;
+
+    // Ventana de agendamiento en semanas (1-12)
+    @Column
+    private Integer ventanaSemanas = 4;
 }

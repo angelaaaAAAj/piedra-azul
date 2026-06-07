@@ -18,7 +18,7 @@ public class AuditoriaController {
 
     private final AuditoriaService auditoriaService;
 
-    // ── POST /api/auditoria ──
+    // -- POST /api/auditoria --
     // Registra un evento manualmente
     @PostMapping
     public ResponseEntity<?> registrar(@RequestBody Map<String, String> body) {
@@ -38,14 +38,14 @@ public class AuditoriaController {
         }
     }
 
-    // ── GET /api/auditoria ──
+    // -- GET /api/auditoria --
     // Lista todos los registros (HU-11)
     @GetMapping
     public ResponseEntity<List<RegistroAuditoria>> listarTodos() {
         return ResponseEntity.ok(auditoriaService.listarTodos());
     }
 
-    // ── GET /api/auditoria/tipo/{tipoEvento} ──
+    // -- GET /api/auditoria/tipo/{tipoEvento} --
     // Lista por tipo de evento
     @GetMapping("/tipo/{tipoEvento}")
     public ResponseEntity<?> listarPorTipo(@PathVariable String tipoEvento) {
@@ -57,7 +57,7 @@ public class AuditoriaController {
         }
     }
 
-    // ── GET /api/auditoria/usuario/{usuario} ──
+    // -- GET /api/auditoria/usuario/{usuario} --
     // Lista acciones de un usuario (HU-12)
     @GetMapping("/usuario/{usuario}")
     public ResponseEntity<List<RegistroAuditoria>> listarPorUsuario(
@@ -65,7 +65,7 @@ public class AuditoriaController {
         return ResponseEntity.ok(auditoriaService.listarPorUsuario(usuario));
     }
 
-    // ── GET /api/auditoria/microservicio/{microservicio} ──
+    // -- GET /api/auditoria/microservicio/{microservicio} --
     // Lista eventos por microservicio origen
     @GetMapping("/microservicio/{microservicio}")
     public ResponseEntity<List<RegistroAuditoria>> listarPorMicroservicio(
@@ -74,7 +74,7 @@ public class AuditoriaController {
                 auditoriaService.listarPorMicroservicio(microservicio));
     }
 
-    // ── GET /api/auditoria/fechas ──
+    // -- GET /api/auditoria/fechas --
     // Lista eventos en un rango de fechas
     // Ejemplo: /api/auditoria/fechas?inicio=2026-05-01T00:00&fin=2026-05-31T23:59
     @GetMapping("/fechas")
