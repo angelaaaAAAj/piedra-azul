@@ -15,6 +15,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.net.URI;
@@ -31,36 +32,29 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-// Ventana de agendamiento autónomo para rol PACIENTE
-// HU-10 — El paciente elige médico, franja horaria y confirma la cita
 public class AgendaPacienteApp extends Application {
 
-    // -- HTTP + JSON --
-    private final HttpClient http     = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // -- Estado de selección --
     private Long pacienteId;
     private Map<String, Object> medicoSeleccionado = null;
-    private LocalDateTime       franjaSeleccionada  = null;
+    private LocalDateTime franjaSeleccionada = null;
 
-    // -- Controles de UI --
-    private final ListView<String>         listaMedicos = new ListView<>();
-    private final ObservableList<String>   itemsMedicos = FXCollections.observableArrayList();
-    private final List<Map<String,Object>> datosMedicos = new ArrayList<>();
+    private final ListView<String> listaMedicos = new ListView<>();
+    private final ObservableList<String> itemsMedicos = FXCollections.observableArrayList();
+    private final List<Map<String, Object>> datosMedicos = new ArrayList<>();
 
-    private final DatePicker dpFecha      = new DatePicker(LocalDate.now().plusDays(1));
-    private final FlowPane   panelFranjas = new FlowPane();
-    private final TextArea   txtMotivo    = new TextArea();
-    private final Label      lblResumen   = new Label("Seleccione médico y franja");
-    private final Label      lblFeedback  = new Label();
+    private final DatePicker dpFecha = new DatePicker(LocalDate.now().plusDays(1));
+    private final FlowPane panelFranjas = new FlowPane();
+    private final TextArea txtMotivo = new TextArea();
+    private final Label lblResumen = new Label("Seleccione médico y franja");
+    private final Label lblFeedback = new Label();
 
-    // FIX 2: Constructor principal recibe pacienteId desde el login
     public AgendaPacienteApp(Long pacienteId) {
         this.pacienteId = pacienteId;
     }
 
-    // Constructor sin args requerido por Application.launch()
     public AgendaPacienteApp() {}
 
     @Override
@@ -78,14 +72,11 @@ public class AgendaPacienteApp extends Application {
         VBox encabezado = new VBox(2, titulo, subtitulo);
         encabezado.setPadding(new Insets(0, 0, 12, 0));
 
-        // ── PANEL IZQUIERDO: lista de médicos ──
+        // ── LISTA DE MÉDICOS ──
         Label lblMedicos = etiqueta("1 · Elige un médico disponible");
-
         listaMedicos.setItems(itemsMedicos);
         listaMedicos.setPrefHeight(280);
         listaMedicos.setCellFactory(lv -> new MedicoCell());
-
-        // Al seleccionar un médico se recalculan las franjas disponibles
         listaMedicos.getSelectionModel().selectedIndexProperty().addListener(
                 (obs, oldIdx, newIdx) -> {
                     int i = newIdx.intValue();
@@ -103,11 +94,9 @@ public class AgendaPacienteApp extends Application {
 
         VBox panelMedicos = panel(new VBox(8, lblMedicos, listaMedicos, btnRecargar));
 
-        // ── PANEL DERECHO: fecha + franjas + motivo ──
+        // ── FECHA Y FRANJAS ──
         Label lblFecha = etiqueta("2 · Selecciona la fecha");
-
         dpFecha.setMaxWidth(Double.MAX_VALUE);
-        // Solo se permiten fechas futuras (mínimo mañana)
         dpFecha.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate date, boolean empty) {
@@ -115,7 +104,6 @@ public class AgendaPacienteApp extends Application {
                 setDisable(empty || date.isBefore(LocalDate.now().plusDays(1)));
             }
         });
-        // Al cambiar la fecha se recalculan las franjas
         dpFecha.valueProperty().addListener((obs, o, n) -> {
             franjaSeleccionada = null;
             actualizarResumen();
@@ -123,20 +111,15 @@ public class AgendaPacienteApp extends Application {
         });
 
         Label lblFranjas = etiqueta("3 · Selecciona una franja libre");
-
         panelFranjas.setHgap(8);
         panelFranjas.setVgap(8);
         panelFranjas.setPrefHeight(140);
         panelFranjas.getChildren().add(hintLabel("Seleccione un médico y una fecha"));
 
-        // FIX 1: Leyenda corregida — el dot muestra el color del BOTÓN, no el fondo
-        // libre → botón morado claro (#EDE9FE con borde #C084FC)
-        // ocupado → botón gris (#9CA3AF)
-        // seleccionado → botón morado oscuro (#7B2FBE)
         HBox leyenda = new HBox(12,
-                chip("libre",        "#C084FC",  "#EDE9FE"),
-                chip("ocupado",      "#9CA3AF",  "#F3F4F6"),
-                chip("seleccionado", "#7B2FBE",  "#7B2FBE"));
+                chip("libre", "#C084FC", "#EDE9FE"),
+                chip("ocupado", "#9CA3AF", "#F3F4F6"),
+                chip("seleccionado", "#7B2FBE", "#7B2FBE"));
         leyenda.setAlignment(Pos.CENTER_LEFT);
 
         txtMotivo.setPromptText("Motivo de la cita (opcional)");
@@ -149,11 +132,10 @@ public class AgendaPacienteApp extends Application {
                 lblFranjas, panelFranjas, leyenda,
                 etiqueta("4 · Motivo (opcional)"), txtMotivo));
 
-        // ── CONTENIDO PRINCIPAL ──
         HBox contenido = new HBox(16, panelMedicos, panelDerecho);
         HBox.setHgrow(panelDerecho, Priority.ALWAYS);
 
-        // ── BARRA INFERIOR: resumen + confirmar ──
+        // ── BARRA INFERIOR ──
         lblResumen.setFont(Font.font("System", FontWeight.BOLD, 13));
         lblResumen.setTextFill(Color.web("#4C1D95"));
         lblResumen.setWrapText(true);
@@ -178,197 +160,86 @@ public class AgendaPacienteApp extends Application {
                 """);
         barraInferior.setPadding(new Insets(14));
 
-        // FIX 3: Sección "Mis citas programadas"
-        // ── SECCIÓN MIS CITAS ──
-        Label lblMisCitas = etiqueta("Mis citas programadas");
+        // ── SECCIÓN MIS CITAS con botones por fila ──
+        Label lblMisCitas = etiqueta("Mis citas");
         lblMisCitas.setFont(Font.font("System", FontWeight.BOLD, 14));
-
-        TableView<Agenda> tablaMisCitas = new TableView<>();
-
-        TableColumn<Agenda, String> colMedico = new TableColumn<>("Médico");
-        colMedico.setCellValueFactory(new PropertyValueFactory<>("medico"));
-        colMedico.setPrefWidth(160);
-
-        TableColumn<Agenda, String> colFechaHora = new TableColumn<>("Fecha y Hora");
-        colFechaHora.setCellValueFactory(new PropertyValueFactory<>("fechaHora"));
-        colFechaHora.setPrefWidth(150);
-
-        TableColumn<Agenda, String> colMotivo = new TableColumn<>("Motivo");
-        colMotivo.setCellValueFactory(new PropertyValueFactory<>("motivo"));
-        colMotivo.setPrefWidth(160);
-
-        TableColumn<Agenda, String> colEstado = new TableColumn<>("Estado");
-        colEstado.setCellValueFactory(new PropertyValueFactory<>("estado"));
-        colEstado.setPrefWidth(110);
-
-        tablaMisCitas.getColumns().addAll(colMedico, colFechaHora, colMotivo, colEstado);
-        tablaMisCitas.setPrefHeight(160);
-        tablaMisCitas.setPlaceholder(new Label("No tienes citas programadas"));
-
-// ── PANEL ACCIONES SOBRE CITA SELECCIONADA ──
-        Label lblAcciones = etiqueta("Cita seleccionada:");
-        lblAcciones.setVisible(false);
-
-        Label lblCitaSeleccionada = new Label("");
-        lblCitaSeleccionada.setFont(Font.font("System", 12));
-        lblCitaSeleccionada.setTextFill(Color.web("#4C1D95"));
-        lblCitaSeleccionada.setVisible(false);
-
-        DatePicker dpNuevaFecha = new DatePicker();
-        dpNuevaFecha.setPromptText("Nueva fecha");
-        dpNuevaFecha.setVisible(false);
-        dpNuevaFecha.setManaged(false);
-        dpNuevaFecha.setDayCellFactory(picker -> new DateCell() {
-            @Override
-            public void updateItem(LocalDate date, boolean empty) {
-                super.updateItem(date, empty);
-                setDisable(empty || date.isBefore(LocalDate.now().plusDays(1)));
-            }
-        });
-
-        ComboBox<String> cbNuevaHora = new ComboBox<>();
-        for (int h = 8; h <= 16; h++) {
-            cbNuevaHora.getItems().addAll(
-                    String.format("%02d:00", h),
-                    String.format("%02d:30", h));
-        }
-        cbNuevaHora.setPromptText("Nueva hora");
-        cbNuevaHora.setVisible(false);
-        cbNuevaHora.setManaged(false);
-
-        Button btnCancelarCita = new Button("✗  Cancelar esta cita");
-        btnCancelarCita.setStyle(estiloBoton("#C62828"));
-        btnCancelarCita.setVisible(false);
-        btnCancelarCita.setManaged(false);
-
-        Button btnReagendarCita = new Button("↺  Reagendar esta cita");
-        btnReagendarCita.setStyle(estiloBoton("#7B2FBE"));
-        btnReagendarCita.setVisible(false);
-        btnReagendarCita.setManaged(false);
 
         Label lblFeedbackCitas = new Label();
         lblFeedbackCitas.setFont(Font.font("System", 12));
         lblFeedbackCitas.setWrapText(true);
 
-// Al seleccionar una cita mostrar las acciones
-        tablaMisCitas.getSelectionModel().selectedItemProperty().addListener(
-                (obs, anterior, seleccionada) -> {
-                    if (seleccionada != null) {
-                        String estado = seleccionada.getEstado();
-                        boolean cancelable = !estado.equals("CANCELADA")
-                                && !estado.equals("COMPLETADA");
+        TableView<Agenda> tablaMisCitas = new TableView<>();
 
-                        lblAcciones.setVisible(true);
-                        lblCitaSeleccionada.setVisible(true);
-                        lblCitaSeleccionada.setText(
-                                seleccionada.getMedico() + "  ·  "
-                                        + seleccionada.getFechaHora() + "  ·  "
-                                        + estado);
+        TableColumn<Agenda, String> colMedico = new TableColumn<>("Médico");
+        colMedico.setCellValueFactory(new PropertyValueFactory<>("medico"));
+        colMedico.setPrefWidth(150);
 
-                        btnCancelarCita.setVisible(cancelable);
-                        btnCancelarCita.setManaged(cancelable);
-                        btnReagendarCita.setVisible(cancelable);
-                        btnReagendarCita.setManaged(cancelable);
-                        dpNuevaFecha.setVisible(cancelable);
-                        dpNuevaFecha.setManaged(cancelable);
-                        cbNuevaHora.setVisible(cancelable);
-                        cbNuevaHora.setManaged(cancelable);
-                    }
+        TableColumn<Agenda, String> colFechaHora = new TableColumn<>("Fecha y Hora");
+        colFechaHora.setCellValueFactory(new PropertyValueFactory<>("fechaHora"));
+        colFechaHora.setPrefWidth(140);
+
+        TableColumn<Agenda, String> colMotivoCita = new TableColumn<>("Motivo");
+        colMotivoCita.setCellValueFactory(new PropertyValueFactory<>("motivo"));
+        colMotivoCita.setPrefWidth(130);
+
+        TableColumn<Agenda, String> colEstado = new TableColumn<>("Estado");
+        colEstado.setCellValueFactory(new PropertyValueFactory<>("estado"));
+        colEstado.setPrefWidth(100);
+
+        // Columna de acciones con botones Cancelar y Reagendar por fila
+        TableColumn<Agenda, Void> colAcciones = new TableColumn<>("Acciones");
+        colAcciones.setPrefWidth(200);
+        colAcciones.setCellFactory(col -> new TableCell<>() {
+            private final Button btnCancelar  = new Button("✗ Cancelar");
+            private final Button btnReagendar = new Button("↺ Reagendar");
+            private final HBox   caja         = new HBox(6, btnCancelar, btnReagendar);
+
+            {
+                btnCancelar.setStyle(estiloBotonTabla("#C62828"));
+                btnReagendar.setStyle(estiloBotonTabla("#7B2FBE"));
+                caja.setAlignment(Pos.CENTER);
+
+                btnCancelar.setOnAction(e -> {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    cancelarCita(cita, tablaMisCitas, lblFeedbackCitas);
                 });
 
-// Cancelar cita seleccionada
-        btnCancelarCita.setOnAction(e -> {
-            Agenda seleccionada = tablaMisCitas.getSelectionModel().getSelectedItem();
-            if (seleccionada == null) return;
-
-            new Thread(() -> {
-                try {
-                    HttpRequest req = HttpRequest.newBuilder()
-                            .uri(URI.create("http://localhost:8080/api/citas/"
-                                    + seleccionada.getId() + "/cancelar"))
-                            .method("PATCH", HttpRequest.BodyPublishers.noBody())
-                            .build();
-                    HttpResponse<String> resp =
-                            http.send(req, HttpResponse.BodyHandlers.ofString());
-                    Platform.runLater(() -> {
-                        if (resp.statusCode() == 200) {
-                            lblFeedbackCitas.setText("✓ Cita cancelada correctamente");
-                            lblFeedbackCitas.setTextFill(Color.web("#059669"));
-                            cargarMisCitas(tablaMisCitas);
-                            ocultarAcciones(lblAcciones, lblCitaSeleccionada,
-                                    btnCancelarCita, btnReagendarCita,
-                                    dpNuevaFecha, cbNuevaHora);
-                        } else {
-                            lblFeedbackCitas.setText("✗ No se pudo cancelar la cita");
-                            lblFeedbackCitas.setTextFill(Color.web("#DC2626"));
-                        }
-                    });
-                } catch (Exception ex) {
-                    Platform.runLater(() -> {
-                        lblFeedbackCitas.setText("✗ Error de conexión");
-                        lblFeedbackCitas.setTextFill(Color.web("#DC2626"));
-                    });
-                }
-            }).start();
-        });
-
-// Reagendar cita seleccionada
-        btnReagendarCita.setOnAction(e -> {
-            Agenda seleccionada = tablaMisCitas.getSelectionModel().getSelectedItem();
-            if (seleccionada == null) return;
-            if (dpNuevaFecha.getValue() == null || cbNuevaHora.getValue() == null) {
-                lblFeedbackCitas.setText("✗ Seleccione nueva fecha y hora");
-                lblFeedbackCitas.setTextFill(Color.web("#DC2626"));
-                return;
+                btnReagendar.setOnAction(e -> {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    abrirVentanaReagendar(cita, tablaMisCitas, lblFeedbackCitas);
+                });
             }
 
-            String nuevaFechaHora = dpNuevaFecha.getValue().toString()
-                    + "T" + cbNuevaHora.getValue();
-
-            new Thread(() -> {
-                try {
-                    String json = "{\"fechaHora\": \"" + nuevaFechaHora + "\"}";
-                    HttpRequest req = HttpRequest.newBuilder()
-                            .uri(URI.create("http://localhost:8080/api/citas/"
-                                    + seleccionada.getId() + "/reagendar"))
-                            .header("Content-Type", "application/json")
-                            .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
-                            .build();
-                    HttpResponse<String> resp =
-                            http.send(req, HttpResponse.BodyHandlers.ofString());
-                    Platform.runLater(() -> {
-                        if (resp.statusCode() == 200) {
-                            lblFeedbackCitas.setText("✓ Cita reagendada correctamente");
-                            lblFeedbackCitas.setTextFill(Color.web("#059669"));
-                            cargarMisCitas(tablaMisCitas);
-                            ocultarAcciones(lblAcciones, lblCitaSeleccionada,
-                                    btnCancelarCita, btnReagendarCita,
-                                    dpNuevaFecha, cbNuevaHora);
-                        } else {
-                            lblFeedbackCitas.setText("✗ No se pudo reagendar: " + resp.body());
-                            lblFeedbackCitas.setTextFill(Color.web("#DC2626"));
-                        }
-                    });
-                } catch (Exception ex) {
-                    Platform.runLater(() -> {
-                        lblFeedbackCitas.setText("✗ Error de conexión");
-                        lblFeedbackCitas.setTextFill(Color.web("#DC2626"));
-                    });
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    boolean activa = !"CANCELADA".equals(cita.getEstado())
+                            && !"COMPLETADA".equals(cita.getEstado());
+                    btnCancelar.setDisable(!activa);
+                    btnReagendar.setDisable(!activa);
+                    setGraphic(caja);
                 }
-            }).start();
+            }
         });
 
-        HBox botonesAccion = new HBox(10, btnCancelarCita, btnReagendarCita);
+        tablaMisCitas.getColumns().addAll(
+                colMedico, colFechaHora, colMotivoCita, colEstado, colAcciones);
+        tablaMisCitas.setPrefHeight(200);
+        tablaMisCitas.setPlaceholder(new Label("No tienes citas programadas"));
 
         Button btnVerMisCitas = new Button("↺ Actualizar mis citas");
         btnVerMisCitas.setStyle(estiloBotonSecundario());
         btnVerMisCitas.setOnAction(e -> cargarMisCitas(tablaMisCitas));
 
         VBox seccionMisCitas = panel(new VBox(10,
-                lblMisCitas, tablaMisCitas, btnVerMisCitas,
-                lblAcciones, lblCitaSeleccionada,
-                new HBox(10, dpNuevaFecha, cbNuevaHora),
-                botonesAccion, lblFeedbackCitas));
+                lblMisCitas,
+                tablaMisCitas,
+                btnVerMisCitas,
+                lblFeedbackCitas));
 
         // ── RAÍZ ──
         VBox root = new VBox(12,
@@ -381,14 +252,263 @@ public class AgendaPacienteApp extends Application {
         scroll.setStyle("-fx-background: #F5F3FF; -fx-background-color: #F5F3FF;");
 
         stage.setTitle("Agendar cita - Piedra Azul");
-        stage.setScene(new Scene(scroll, 900, 720));
+        stage.setScene(new Scene(scroll, 950, 720));
         stage.show();
 
         cargarMedicos();
         cargarMisCitas(tablaMisCitas);
     }
 
-    // -- Carga de médicos disponibles desde ms-agenda --
+    // ── Cancelar cita directamente desde la fila ──
+    private void cancelarCita(Agenda cita,
+                              TableView<Agenda> tabla,
+                              Label lblFeedback) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Seguro que deseas cancelar la cita con "
+                        + cita.getMedico() + " el " + cita.getFechaHora() + "?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Confirmar cancelación");
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt == ButtonType.YES) {
+                new Thread(() -> {
+                    try {
+                        HttpRequest req = HttpRequest.newBuilder()
+                                .uri(URI.create("http://localhost:8080/api/citas/"
+                                        + cita.getId() + "/cancelar"))
+                                .method("PATCH", HttpRequest.BodyPublishers.noBody())
+                                .build();
+                        HttpResponse<String> resp =
+                                http.send(req, HttpResponse.BodyHandlers.ofString());
+                        Platform.runLater(() -> {
+                            if (resp.statusCode() == 200) {
+                                lblFeedback.setText("✓ Cita cancelada correctamente");
+                                lblFeedback.setTextFill(Color.web("#059669"));
+                                cargarMisCitas(tabla);
+                            } else {
+                                lblFeedback.setText("✗ No se pudo cancelar la cita");
+                                lblFeedback.setTextFill(Color.web("#DC2626"));
+                            }
+                        });
+                    } catch (Exception ex) {
+                        Platform.runLater(() -> {
+                            lblFeedback.setText("✗ Error de conexión");
+                            lblFeedback.setTextFill(Color.web("#DC2626"));
+                        });
+                    }
+                }).start();
+            }
+        });
+    }
+
+    // ── Ventana de reagendamiento: mismo flujo que agendar pero para una cita existente ──
+    private void abrirVentanaReagendar(Agenda cita,
+                                       TableView<Agenda> tabla,
+                                       Label lblFeedbackPadre) {
+        Stage ventana = new Stage();
+        ventana.initModality(Modality.APPLICATION_MODAL);
+        ventana.setTitle("Reagendar cita - " + cita.getMedico());
+
+        // ── Info de la cita actual ──
+        Label lblInfo = new Label(
+                "Cita actual:  " + cita.getMedico()
+                        + "  ·  " + cita.getFechaHora());
+        lblInfo.setFont(Font.font("System", FontWeight.BOLD, 13));
+        lblInfo.setTextFill(Color.web("#4C1D95"));
+
+        // ── Selector de nueva fecha ──
+        Label lblFecha = etiqueta("Selecciona la nueva fecha:");
+        DatePicker dpNuevaFecha = new DatePicker();
+        dpNuevaFecha.setMaxWidth(Double.MAX_VALUE);
+        dpNuevaFecha.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                setDisable(empty || date.isBefore(LocalDate.now().plusDays(1)));
+            }
+        });
+
+        // ── Panel de franjas ──
+        Label lblFranjas = etiqueta("Selecciona una franja disponible:");
+        FlowPane franjas = new FlowPane();
+        franjas.setHgap(8);
+        franjas.setVgap(8);
+        franjas.setPrefHeight(130);
+        franjas.getChildren().add(hintLabel("Selecciona una fecha para ver las franjas"));
+
+        // Leyenda igual que en agendar
+        HBox leyenda = new HBox(12,
+                chip("libre", "#C084FC", "#EDE9FE"),
+                chip("ocupado", "#9CA3AF", "#F3F4F6"),
+                chip("seleccionado", "#7B2FBE", "#7B2FBE"));
+        leyenda.setAlignment(Pos.CENTER_LEFT);
+
+        // Hora seleccionada (se actualiza al hacer clic en una franja)
+        final String[] horaSeleccionada = {null};
+
+        // Al cambiar fecha, cargar franjas del médico de esa cita
+        dpNuevaFecha.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) return;
+            horaSeleccionada[0] = null;
+            franjas.getChildren().setAll(hintLabel("Cargando franjas..."));
+
+            new Thread(() -> {
+                try {
+                    // Configuración del médico
+                    HttpRequest reqMedico = HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:8080/api/medicos/"
+                                    + cita.getMedicoId()))
+                            .GET().build();
+                    HttpResponse<String> respMedico =
+                            http.send(reqMedico, HttpResponse.BodyHandlers.ofString());
+                    Map<String, Object> medico = mapper.readValue(
+                            respMedico.body(), new TypeReference<>() {});
+
+                    String inicioStr = medico.getOrDefault("franjaInicio", "08:00").toString();
+                    String finStr    = medico.getOrDefault("franjaFin",    "17:00").toString();
+                    int intervalo    = Integer.parseInt(
+                            medico.getOrDefault("intervaloCitas", "30").toString());
+
+                    // Citas ya ocupadas ese día (excluyendo la que se está reagendando)
+                    HttpRequest reqCitas = HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:8080/api/citas/medico/"
+                                    + cita.getMedicoId()))
+                            .GET().build();
+                    HttpResponse<String> respCitas =
+                            http.send(reqCitas, HttpResponse.BodyHandlers.ofString());
+                    List<Map<String, Object>> citasMedico = mapper.readValue(
+                            respCitas.body(), new TypeReference<>() {});
+
+                    Set<String> ocupadas = citasMedico.stream()
+                            .filter(c -> {
+                                String fh = c.getOrDefault("fechaHora", "").toString();
+                                // Excluir la propia cita que se reagenda
+                                return fh.startsWith(newVal.toString())
+                                        && !c.get("id").toString()
+                                        .equals(cita.getId().toString());
+                            })
+                            .map(c -> c.get("fechaHora").toString().substring(11, 16))
+                            .collect(Collectors.toSet());
+
+                    // Generar slots
+                    LocalTime ini = LocalTime.parse(inicioStr);
+                    LocalTime fin = LocalTime.parse(finStr);
+                    List<LocalTime> slots = new ArrayList<>();
+                    LocalTime cursor = ini;
+                    while (!cursor.isAfter(fin.minusMinutes(intervalo))) {
+                        slots.add(cursor);
+                        cursor = cursor.plusMinutes(intervalo);
+                    }
+
+                    Platform.runLater(() -> {
+                        franjas.getChildren().clear();
+                        DateTimeFormatter hf = DateTimeFormatter.ofPattern("HH:mm");
+                        for (LocalTime slot : slots) {
+                            String hora   = slot.format(hf);
+                            boolean libre = !ocupadas.contains(hora);
+                            Button btn = new Button(hora);
+                            btn.setPrefWidth(72);
+                            btn.setPrefHeight(36);
+                            btn.setFont(Font.font("System", 13));
+                            if (!libre) {
+                                btn.setStyle("""
+                                        -fx-background-color: #F3F4F6;
+                                        -fx-text-fill: #9CA3AF;
+                                        -fx-background-radius: 6;
+                                        """);
+                                btn.setDisable(true);
+                                btn.setTooltip(new Tooltip("Horario ocupado"));
+                            } else {
+                                btn.setStyle(estiloSlotLibre());
+                                btn.setOnAction(e -> {
+                                    // Deseleccionar otros
+                                    franjas.getChildren().stream()
+                                            .filter(n -> n instanceof Button)
+                                            .map(n -> (Button) n)
+                                            .filter(b -> !b.isDisabled())
+                                            .forEach(b -> b.setStyle(estiloSlotLibre()));
+                                    btn.setStyle(estiloSlotSeleccionado());
+                                    horaSeleccionada[0] = hora;
+                                });
+                            }
+                            franjas.getChildren().add(btn);
+                        }
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() ->
+                            franjas.getChildren().setAll(
+                                    hintLabel("Error al cargar franjas")));
+                }
+            }).start();
+        });
+
+        // ── Botones de la ventana ──
+        Label lblFeedbackVentana = new Label();
+        lblFeedbackVentana.setFont(Font.font("System", 12));
+        lblFeedbackVentana.setWrapText(true);
+
+        Button btnConfirmarReagendar = new Button("✓  Confirmar reagendamiento");
+        btnConfirmarReagendar.setStyle(estiloBoton("#7B2FBE"));
+        btnConfirmarReagendar.setPrefHeight(40);
+        btnConfirmarReagendar.setOnAction(e -> {
+            if (dpNuevaFecha.getValue() == null || horaSeleccionada[0] == null) {
+                lblFeedbackVentana.setText("✗ Selecciona fecha y franja horaria");
+                lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+                return;
+            }
+            String nuevaFechaHora = dpNuevaFecha.getValue().toString()
+                    + "T" + horaSeleccionada[0];
+            String json = "{\"fechaHora\": \"" + nuevaFechaHora + "\"}";
+
+            new Thread(() -> {
+                try {
+                    HttpRequest req = HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:8080/api/citas/"
+                                    + cita.getId() + "/reagendar"))
+                            .header("Content-Type", "application/json")
+                            .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+                            .build();
+                    HttpResponse<String> resp =
+                            http.send(req, HttpResponse.BodyHandlers.ofString());
+                    Platform.runLater(() -> {
+                        if (resp.statusCode() == 200) {
+                            lblFeedbackPadre.setText("✓ Cita reagendada correctamente");
+                            lblFeedbackPadre.setTextFill(Color.web("#059669"));
+                            cargarMisCitas(tabla);
+                            ventana.close();
+                        } else {
+                            lblFeedbackVentana.setText("✗ No se pudo reagendar: "
+                                    + resp.body());
+                            lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+                        }
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        lblFeedbackVentana.setText("✗ Error de conexión");
+                        lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+                    });
+                }
+            }).start();
+        });
+
+        Button btnCerrar = new Button("Cancelar");
+        btnCerrar.setStyle(estiloBotonSecundario());
+        btnCerrar.setOnAction(e -> ventana.close());
+
+        HBox botones = new HBox(10, btnConfirmarReagendar, btnCerrar);
+        botones.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox layoutVentana = new VBox(12,
+                lblInfo, lblFecha, dpNuevaFecha,
+                lblFranjas, franjas, leyenda,
+                botones, lblFeedbackVentana);
+        layoutVentana.setPadding(new Insets(20));
+        layoutVentana.setStyle("-fx-background-color: #F5F3FF;");
+
+        ventana.setScene(new Scene(layoutVentana, 700, 450));
+        ventana.show();
+    }
+
     private void cargarMedicos() {
         new Thread(() -> {
             try {
@@ -397,10 +517,8 @@ public class AgendaPacienteApp extends Application {
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
-
                 List<Map<String, Object>> lista = mapper.readValue(
                         resp.body(), new TypeReference<>() {});
-
                 Platform.runLater(() -> {
                     datosMedicos.clear();
                     itemsMedicos.clear();
@@ -418,7 +536,6 @@ public class AgendaPacienteApp extends Application {
         }).start();
     }
 
-    // FIX 3: Carga las citas del paciente actual desde ms-agenda
     private void cargarMisCitas(TableView<Agenda> tabla) {
         if (pacienteId == null) return;
         new Thread(() -> {
@@ -429,10 +546,8 @@ public class AgendaPacienteApp extends Application {
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
-
                 List<Map<String, Object>> lista = mapper.readValue(
                         resp.body(), new TypeReference<>() {});
-
                 Platform.runLater(() -> {
                     ObservableList<Agenda> items = FXCollections.observableArrayList(
                             lista.stream().map(m -> {
@@ -441,8 +556,10 @@ public class AgendaPacienteApp extends Application {
                                         ? Long.parseLong(m.get("id").toString()) : 0L);
                                 a.setPacienteId(pacienteId);
                                 if (m.get("medico") instanceof Map<?, ?> med) {
-                                    a.setMedico(med.get("nombre") + " " + med.get("apellido"));
-                                    a.setMedicoId(Long.parseLong(med.get("id").toString()));
+                                    a.setMedico(med.get("nombre") + " "
+                                            + med.get("apellido"));
+                                    a.setMedicoId(Long.parseLong(
+                                            med.get("id").toString()));
                                 }
                                 a.setFechaHora(m.get("fechaHora") != null
                                         ? m.get("fechaHora").toString() : "");
@@ -461,14 +578,10 @@ public class AgendaPacienteApp extends Application {
         }).start();
     }
 
-    // -- Calcula las franjas libres cruzando la franja del médico con sus citas --
     private void cargarFranjas() {
         if (medicoSeleccionado == null || dpFecha.getValue() == null) return;
-
-        Long medicoId   = Long.parseLong(medicoSeleccionado.get("id").toString());
+        Long medicoId = Long.parseLong(medicoSeleccionado.get("id").toString());
         LocalDate fecha = dpFecha.getValue();
-
-        // Leer configuración del médico (con fallback a valores por defecto)
         String inicioStr = medicoSeleccionado.getOrDefault("franjaInicio", "08:00").toString();
         String finStr    = medicoSeleccionado.getOrDefault("franjaFin",    "17:00").toString();
         int intervalo    = Integer.parseInt(
@@ -483,11 +596,9 @@ public class AgendaPacienteApp extends Application {
                         .GET().build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
-
                 List<Map<String, Object>> citas = mapper.readValue(
                         resp.body(), new TypeReference<>() {});
 
-                // Horarios ya ocupados en la fecha seleccionada (formato HH:mm)
                 Set<String> ocupadas = citas.stream()
                         .filter(c -> {
                             String fh = c.getOrDefault("fechaHora", "").toString();
@@ -496,7 +607,6 @@ public class AgendaPacienteApp extends Application {
                         .map(c -> c.get("fechaHora").toString().substring(11, 16))
                         .collect(Collectors.toSet());
 
-                // Generar todos los slots dentro de la franja del médico
                 LocalTime ini = LocalTime.parse(inicioStr);
                 LocalTime fin = LocalTime.parse(finStr);
                 List<LocalTime> slots = new ArrayList<>();
@@ -528,15 +638,12 @@ public class AgendaPacienteApp extends Application {
         }).start();
     }
 
-    // -- Construye el botón de una franja horaria (libre u ocupado) --
     private Button buildSlotButton(String hora, boolean libre, LocalDate fecha) {
         Button btn = new Button(hora);
         btn.setPrefWidth(72);
         btn.setPrefHeight(36);
         btn.setFont(Font.font("System", 13));
-
         if (!libre) {
-            // Slot ocupado: deshabilitado y tachado visualmente
             btn.setStyle("""
                     -fx-background-color: #F3F4F6;
                     -fx-text-fill: #9CA3AF;
@@ -548,16 +655,12 @@ public class AgendaPacienteApp extends Application {
         } else {
             btn.setStyle(estiloSlotLibre());
             btn.setOnAction(e -> {
-                // Deseleccionar todos los slots libres
                 panelFranjas.getChildren().stream()
                         .filter(n -> n instanceof Button)
                         .map(n -> (Button) n)
                         .filter(b -> !b.isDisabled())
                         .forEach(b -> b.setStyle(estiloSlotLibre()));
-
-                // Marcar este slot como seleccionado
                 btn.setStyle(estiloSlotSeleccionado());
-
                 franjaSeleccionada = LocalDateTime.of(fecha, LocalTime.parse(hora));
                 actualizarResumen();
             });
@@ -565,7 +668,6 @@ public class AgendaPacienteApp extends Application {
         return btn;
     }
 
-    // -- Confirmar cita: POST /api/citas con fechaHoraManual --
     private void confirmarCita() {
         if (medicoSeleccionado == null) {
             feedback("Seleccione un médico.", true); return;
@@ -573,16 +675,12 @@ public class AgendaPacienteApp extends Application {
         if (franjaSeleccionada == null) {
             feedback("Seleccione una franja horaria.", true); return;
         }
-        // FIX 2: pacienteId viene del constructor — ya no puede ser null en uso normal
         if (pacienteId == null) {
-            feedback("Error interno: sesión sin pacienteId. Cierre y vuelva a iniciar sesión.", true);
-            return;
+            feedback("Error interno: sesión sin pacienteId.", true); return;
         }
-
-        Long   medicoId = Long.parseLong(medicoSeleccionado.get("id").toString());
-        String motivo   = txtMotivo.getText().isBlank()
+        Long medicoId = Long.parseLong(medicoSeleccionado.get("id").toString());
+        String motivo = txtMotivo.getText().isBlank()
                 ? "Consulta general" : txtMotivo.getText().trim();
-
         String json = """
                 {
                   "pacienteId": %d,
@@ -590,11 +688,8 @@ public class AgendaPacienteApp extends Application {
                   "motivo": "%s",
                   "fechaHoraManual": "%s"
                 }
-                """.formatted(
-                pacienteId,
-                medicoId,
-                motivo.replace("\"", "'"),
-                franjaSeleccionada.toString());
+                """.formatted(pacienteId, medicoId,
+                motivo.replace("\"", "'"), franjaSeleccionada.toString());
 
         new Thread(() -> {
             try {
@@ -605,11 +700,9 @@ public class AgendaPacienteApp extends Application {
                         .build();
                 HttpResponse<String> resp =
                         http.send(req, HttpResponse.BodyHandlers.ofString());
-
                 Platform.runLater(() -> {
                     if (resp.statusCode() == 201) {
                         feedback("✓ Cita confirmada: " + lblResumen.getText(), false);
-                        // Resetear selección para permitir agendar otra cita
                         franjaSeleccionada = null;
                         medicoSeleccionado = null;
                         listaMedicos.getSelectionModel().clearSelection();
@@ -628,7 +721,6 @@ public class AgendaPacienteApp extends Application {
         }).start();
     }
 
-    // -- Actualiza el texto de resumen con la selección actual --
     private void actualizarResumen() {
         if (medicoSeleccionado == null) {
             lblResumen.setText("Seleccione médico y franja");
@@ -636,9 +728,9 @@ public class AgendaPacienteApp extends Application {
         }
         String nombre = medicoSeleccionado.get("nombre")
                 + " " + medicoSeleccionado.get("apellido");
-        String fecha  = dpFecha.getValue() != null
+        String fecha = dpFecha.getValue() != null
                 ? dpFecha.getValue().toString() : "—";
-        String hora   = franjaSeleccionada != null
+        String hora = franjaSeleccionada != null
                 ? franjaSeleccionada.toLocalTime().toString() : "—";
         lblResumen.setText("Dr/a. " + nombre + "  ·  " + fecha + "  ·  " + hora);
     }
@@ -675,7 +767,6 @@ public class AgendaPacienteApp extends Application {
         return box;
     }
 
-    // FIX 1: chip corregido — colorBorde es el borde del dot, colorFondo es su relleno
     private HBox chip(String texto, String colorBorde, String colorFondo) {
         Region dot = new Region();
         dot.setPrefSize(14, 14);
@@ -735,6 +826,17 @@ public class AgendaPacienteApp extends Application {
                 """;
     }
 
+    // Botones pequeños para usar dentro de las celdas de la tabla
+    private String estiloBotonTabla(String color) {
+        return "-fx-background-color: " + color + ";"
+                + "-fx-text-fill: white;"
+                + "-fx-font-size: 11px;"
+                + "-fx-font-weight: bold;"
+                + "-fx-background-radius: 5;"
+                + "-fx-cursor: hand;"
+                + "-fx-padding: 4 8;";
+    }
+
     private String campoEstilo() {
         return """
                 -fx-background-color: white;
@@ -746,10 +848,6 @@ public class AgendaPacienteApp extends Application {
                 """;
     }
 
-    // ══════════════════════════════════════════════════════
-    // Celda personalizada para la lista de médicos.
-    // Muestra nombre completo y especialidad en dos líneas.
-    // ══════════════════════════════════════════════════════
     private static class MedicoCell extends ListCell<String> {
         @Override
         protected void updateItem(String item, boolean empty) {
@@ -762,35 +860,15 @@ public class AgendaPacienteApp extends Application {
                 Label nombre = new Label(partes[0]);
                 nombre.setFont(Font.font("System", FontWeight.BOLD, 13));
                 nombre.setTextFill(Color.web("#1F2937"));
-
                 Label esp = new Label(partes.length > 1 ? partes[1] : "");
                 esp.setFont(Font.font("System", 11));
                 esp.setTextFill(Color.web("#7B2FBE"));
-
                 VBox box = new VBox(2, nombre, esp);
                 box.setPadding(new Insets(4, 0, 4, 0));
                 setGraphic(box);
                 setText(null);
             }
         }
-
-    }
-
-    private void ocultarAcciones(Label lblAcciones, Label lblCita,
-                                 Button btnCancelar, Button btnReagendar,
-                                 DatePicker dp, ComboBox<String> cb) {
-        lblAcciones.setVisible(false);
-        lblCita.setVisible(false);
-        btnCancelar.setVisible(false);
-        btnCancelar.setManaged(false);
-        btnReagendar.setVisible(false);
-        btnReagendar.setManaged(false);
-        dp.setVisible(false);
-        dp.setManaged(false);
-        cb.setVisible(false);
-        cb.setManaged(false);
-        dp.setValue(null);
-        cb.setValue(null);
     }
 
     public static void main(String[] args) {
