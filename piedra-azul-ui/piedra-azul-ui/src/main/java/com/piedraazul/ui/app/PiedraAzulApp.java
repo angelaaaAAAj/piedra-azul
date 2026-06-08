@@ -214,7 +214,9 @@ public class PiedraAzulApp extends Application {
                         crearBotonMenu("📋  Historial Clínico", () ->
                                 new com.piedraazul.ui.historial.HistorialApp().start(new Stage())),
                         crearBotonMenu("🔍  Auditoría", () ->
-                                new com.piedraazul.ui.auditoria.AuditoriaApp().start(new Stage()))
+                                new com.piedraazul.ui.auditoria.AuditoriaApp().start(new Stage())),
+                        crearBotonMenu("📊  Reportes y Estadísticas", () ->
+                                new com.piedraazul.ui.reportes.ReportesApp().start(new Stage()))
                 );
             }
             case "MEDICO_TERAPISTA" -> {
