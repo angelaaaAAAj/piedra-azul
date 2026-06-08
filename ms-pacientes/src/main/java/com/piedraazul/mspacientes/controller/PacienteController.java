@@ -2,13 +2,13 @@ package com.piedraazul.mspacientes.controller;
 
 import com.piedraazul.mspacientes.dto.PacienteDTO;
 import com.piedraazul.mspacientes.model.Paciente;
+import com.piedraazul.mspacientes.security.RolRequerido;
 import com.piedraazul.mspacientes.service.PacienteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.util.List;
 import java.util.Map;
@@ -22,7 +22,9 @@ public class PacienteController {
     private final PacienteService pacienteService;
 
     // -- POST /api/pacientes/registro --
-    // Registro autónomo por el paciente (HU-09)
+    // Registro autónomo: el paciente lo hace desde la UI sin estar logueado aún,
+    // pero este endpoint pasa por el flujo de registro en ms-auth, que no requiere token.
+    // Si se llama ya autenticado, cualquier rol puede registrar un paciente.
     @PostMapping("/registro")
     public ResponseEntity<?> registrar(@Valid @RequestBody PacienteDTO dto) {
         try {
@@ -35,7 +37,8 @@ public class PacienteController {
     }
 
     // -- POST /api/pacientes/registro/recepcionista --
-    // Registro por recepcionista (HU-02)
+    // Solo agendadores y administradores registran pacientes manualmente
+    @RolRequerido({"AGENDADOR", "ADMINISTRADOR", "MEDICO_TERAPISTA"})
     @PostMapping("/registro/recepcionista")
     public ResponseEntity<?> registrarPorRecepcionista(@Valid @RequestBody PacienteDTO dto) {
         try {
@@ -48,14 +51,16 @@ public class PacienteController {
     }
 
     // -- GET /api/pacientes --
-    // Lista todos los pacientes
+    // Solo personal interno puede listar todos los pacientes
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping
     public ResponseEntity<List<Paciente>> listarTodos() {
         return ResponseEntity.ok(pacienteService.listarTodos());
     }
 
     // -- GET /api/pacientes/documento/{documento} --
-    // Busca un paciente por número de documento
+    // Para buscar un paciente al agendar: agendadores, médicos y admin
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/documento/{documento}")
     public ResponseEntity<?> buscarPorDocumento(@PathVariable String documento) {
         try {
@@ -67,7 +72,7 @@ public class PacienteController {
     }
 
     // -- GET /api/pacientes/estado/{estado} --
-    // Lista pacientes por estado
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/estado/{estado}")
     public ResponseEntity<?> listarPorEstado(@PathVariable String estado) {
         try {
@@ -79,7 +84,8 @@ public class PacienteController {
     }
 
     // -- PUT /api/pacientes/{id} --
-    // Actualiza datos del paciente
+    // Administradores y agendadores pueden actualizar datos
+    @RolRequerido({"AGENDADOR", "ADMINISTRADOR"})
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(@PathVariable Long id,
                                         @Valid @RequestBody PacienteDTO dto) {
@@ -92,7 +98,8 @@ public class PacienteController {
     }
 
     // -- PATCH /api/pacientes/{id}/estado --
-    // Cambia el estado del paciente
+    // Solo administradores cambian el estado de un paciente
+    @RolRequerido({"ADMINISTRADOR"})
     @PatchMapping("/{id}/estado")
     public ResponseEntity<?> cambiarEstado(@PathVariable Long id,
                                            @RequestBody Map<String, String> body) {
@@ -104,14 +111,16 @@ public class PacienteController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
-    // --GET /api/pacientes/test --
+
+    // -- GET /api/pacientes/test --
     @GetMapping("/test")
     public String test() {
         return "MS PACIENTES FUNCIONANDO";
     }
 
-    // --GET /api/pacientes/{id} --
-    // Busca paciente por ID (usado por ms-agenda)
+    // -- GET /api/pacientes/{id} --
+    // Usado internamente por ms-agenda; pacientes pueden ver su propio perfil
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
         return pacienteService.buscarPorId(id)

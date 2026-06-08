@@ -2,6 +2,7 @@ package com.piedraazul.msauditoria.controller;
 
 import com.piedraazul.msauditoria.model.RegistroAuditoria;
 import com.piedraazul.msauditoria.model.TipoEvento;
+import com.piedraazul.msauditoria.security.RolRequerido;
 import com.piedraazul.msauditoria.service.AuditoriaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+
 @CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/auditoria")
@@ -19,7 +21,10 @@ public class AuditoriaController {
     private final AuditoriaService auditoriaService;
 
     // -- POST /api/auditoria --
-    // Registra un evento manualmente
+    // Los microservicios internos registran eventos; en producción esto
+    // vendría de llamadas internas sin pasar por el gateway, pero para
+    // el alcance académico se permite a todos los roles internos.
+    @RolRequerido({"ADMINISTRADOR", "MEDICO_TERAPISTA", "AGENDADOR"})
     @PostMapping
     public ResponseEntity<?> registrar(@RequestBody Map<String, String> body) {
         try {
@@ -39,14 +44,15 @@ public class AuditoriaController {
     }
 
     // -- GET /api/auditoria --
-    // Lista todos los registros (HU-11)
+    // Solo administradores pueden consultar el log completo (RNF2)
+    @RolRequerido({"ADMINISTRADOR"})
     @GetMapping
     public ResponseEntity<List<RegistroAuditoria>> listarTodos() {
         return ResponseEntity.ok(auditoriaService.listarTodos());
     }
 
     // -- GET /api/auditoria/tipo/{tipoEvento} --
-    // Lista por tipo de evento
+    @RolRequerido({"ADMINISTRADOR"})
     @GetMapping("/tipo/{tipoEvento}")
     public ResponseEntity<?> listarPorTipo(@PathVariable String tipoEvento) {
         try {
@@ -58,7 +64,7 @@ public class AuditoriaController {
     }
 
     // -- GET /api/auditoria/usuario/{usuario} --
-    // Lista acciones de un usuario (HU-12)
+    @RolRequerido({"ADMINISTRADOR"})
     @GetMapping("/usuario/{usuario}")
     public ResponseEntity<List<RegistroAuditoria>> listarPorUsuario(
             @PathVariable String usuario) {
@@ -66,7 +72,7 @@ public class AuditoriaController {
     }
 
     // -- GET /api/auditoria/microservicio/{microservicio} --
-    // Lista eventos por microservicio origen
+    @RolRequerido({"ADMINISTRADOR"})
     @GetMapping("/microservicio/{microservicio}")
     public ResponseEntity<List<RegistroAuditoria>> listarPorMicroservicio(
             @PathVariable String microservicio) {
@@ -75,8 +81,7 @@ public class AuditoriaController {
     }
 
     // -- GET /api/auditoria/fechas --
-    // Lista eventos en un rango de fechas
-    // Ejemplo: /api/auditoria/fechas?inicio=2026-05-01T00:00&fin=2026-05-31T23:59
+    @RolRequerido({"ADMINISTRADOR"})
     @GetMapping("/fechas")
     public ResponseEntity<?> listarPorFechas(@RequestParam String inicio,
                                              @RequestParam String fin) {

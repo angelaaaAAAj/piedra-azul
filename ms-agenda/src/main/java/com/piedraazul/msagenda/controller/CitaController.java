@@ -3,6 +3,7 @@ package com.piedraazul.msagenda.controller;
 import com.piedraazul.msagenda.dto.CitaDTO;
 import com.piedraazul.msagenda.model.Cita;
 import com.piedraazul.msagenda.repository.CitaRepository;
+import com.piedraazul.msagenda.security.RolRequerido;
 import com.piedraazul.msagenda.service.CitaService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -28,7 +29,8 @@ public class CitaController {
     private final CitaRepository citaRepository;
 
     // -- POST /api/citas --
-    // Agenda una cita (HU-10 agendamiento autónomo)
+    // Pacientes agendan de forma autónoma; médicos/agendadores también pueden
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @PostMapping
     public ResponseEntity<?> agendar(@Valid @RequestBody CitaDTO dto) {
         try {
@@ -41,32 +43,31 @@ public class CitaController {
     }
 
     // -- GET /api/citas --
-    // Lista todas las citas
+    // Solo personal interno puede ver todas las citas
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping
     public ResponseEntity<List<Cita>> listarTodas() {
         return ResponseEntity.ok(citaService.listarTodas());
     }
 
     // -- GET /api/citas/medico/{medicoId} --
-    // Lista citas por médico (HU-07)
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/medico/{medicoId}")
     public ResponseEntity<List<Cita>> listarPorMedico(@PathVariable Long medicoId) {
         return ResponseEntity.ok(citaService.listarPorMedico(medicoId));
     }
 
     // -- GET /api/citas/paciente/{pacienteId} --
-    // Lista citas por paciente
+    // Un paciente puede ver sus propias citas; personal interno también
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/paciente/{pacienteId}")
     public ResponseEntity<List<Cita>> listarPorPaciente(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(citaService.listarPorPaciente(pacienteId));
     }
 
-    // -- GET /api/citas/export?medicoId=X&fecha=Y --
-    // Exporta citas de un médico en una fecha a Excel (.xlsx) con formato:
-    //   - Encabezados con fondo morado claro (#C084FC) y texto blanco en negrita
-    //   - Columnas con ancho automático ajustado al contenido
-    //   - Filas de datos con fondo blanco y bordes finos
-    // IMPORTANTE: va antes de /{id} para que Spring no confunda "export" con un Long
+    // -- GET /api/citas/export --
+    // Solo personal interno puede exportar
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/export")
     public void exportarExcel(
             @RequestParam Long medicoId,
@@ -80,7 +81,6 @@ public class CitaController {
             List<Map<String, String>> filas =
                     citaService.exportarCitasConDatosPaciente(medicoId, localDate);
 
-            // Nombre del archivo
             String nombreArchivo = "citas_medico_" + medicoId
                     + (localDate != null ? "_" + localDate : "") + ".xlsx";
 
@@ -93,9 +93,7 @@ public class CitaController {
 
                 Sheet sheet = workbook.createSheet("Citas");
 
-                // ── Estilo encabezado: fondo morado claro #C084FC, texto blanco negrita ──
                 CellStyle estiloEncabezado = workbook.createCellStyle();
-                // Color morado claro: RGB 192, 132, 252
                 XSSFColor moradoClaro = new XSSFColor(
                         new byte[]{ (byte) 192, (byte) 132, (byte) 252 }, null);
                 ((org.apache.poi.xssf.usermodel.XSSFCellStyle) estiloEncabezado)
@@ -110,13 +108,11 @@ public class CitaController {
                 estiloEncabezado.setAlignment(HorizontalAlignment.CENTER);
                 setBordeFino(estiloEncabezado);
 
-                // ── Estilo datos: fondo blanco, borde fino ──
                 CellStyle estiloDatos = workbook.createCellStyle();
                 estiloDatos.setFillForegroundColor(IndexedColors.WHITE.getIndex());
                 estiloDatos.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 setBordeFino(estiloDatos);
 
-                // ── Fila de encabezados ──
                 String[] columnas = {
                         "Nombre Paciente", "Documento", "Hora", "Motivo", "Estado"
                 };
@@ -128,7 +124,6 @@ public class CitaController {
                     celda.setCellStyle(estiloEncabezado);
                 }
 
-                // ── Filas de datos ──
                 String[] claves = {
                         "nombrePaciente", "documento", "hora", "motivo", "estado"
                 };
@@ -143,10 +138,8 @@ public class CitaController {
                     }
                 }
 
-                // ── Ajustar ancho de columnas al contenido ──
                 for (int i = 0; i < columnas.length; i++) {
                     sheet.autoSizeColumn(i);
-                    // Agregar un poco de margen extra
                     sheet.setColumnWidth(i, sheet.getColumnWidth(i) + 1024);
                 }
 
@@ -161,7 +154,6 @@ public class CitaController {
         }
     }
 
-    // Aplica borde fino en los cuatro lados de un estilo de celda
     private void setBordeFino(CellStyle estilo) {
         estilo.setBorderTop(BorderStyle.THIN);
         estilo.setBorderBottom(BorderStyle.THIN);
@@ -170,7 +162,7 @@ public class CitaController {
     }
 
     // -- PATCH /api/citas/{id}/cancelar --
-    // Cancela una cita
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @PatchMapping("/{id}/cancelar")
     public ResponseEntity<?> cancelar(@PathVariable Long id) {
         try {
@@ -182,7 +174,7 @@ public class CitaController {
     }
 
     // -- PATCH /api/citas/{id}/reagendar --
-    // Reagenda una cita (HU-04b)
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @PatchMapping("/{id}/reagendar")
     public ResponseEntity<?> reagendar(@PathVariable Long id,
                                        @RequestBody Map<String, String> body) {
@@ -196,8 +188,8 @@ public class CitaController {
     }
 
     // -- GET /api/citas/{id} --
-    // Busca cita por ID (usado por ms-historial)
-    // IMPORTANTE: va DESPUÉS de /export para evitar conflicto de rutas
+    // Acceso interno entre microservicios (ms-historial lo consume)
+    @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR", "PACIENTE"})
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
         return citaRepository.findById(id)

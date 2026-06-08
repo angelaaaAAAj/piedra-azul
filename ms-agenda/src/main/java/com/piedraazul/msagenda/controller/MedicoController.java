@@ -1,14 +1,15 @@
 package com.piedraazul.msagenda.controller;
 
+import com.piedraazul.msagenda.dto.ConfiguracionMedicoDTO;
 import com.piedraazul.msagenda.model.Medico;
 import com.piedraazul.msagenda.model.TipoEspecialidad;
 import com.piedraazul.msagenda.repository.MedicoRepository;
+import com.piedraazul.msagenda.security.RolRequerido;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
-import com.piedraazul.msagenda.dto.ConfiguracionMedicoDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,8 @@ public class MedicoController {
     private final MedicoRepository medicoRepository;
 
     // -- POST /api/medicos --
-    // Crea un médico o terapista (HU-07, HU-08)
+    // Solo administradores crean médicos
+    @RolRequerido({"ADMINISTRADOR"})
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody Medico medico) {
         try {
@@ -34,21 +36,22 @@ public class MedicoController {
     }
 
     // -- GET /api/medicos --
-    // Lista todos los médicos
+    // Personal interno y pacientes pueden ver la lista para agendar
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping
     public ResponseEntity<List<Medico>> listarTodos() {
         return ResponseEntity.ok(medicoRepository.findAll());
     }
 
     // -- GET /api/medicos/disponibles --
-    // Lista médicos disponibles
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/disponibles")
     public ResponseEntity<List<Medico>> listarDisponibles() {
         return ResponseEntity.ok(medicoRepository.findByDisponibleTrue());
     }
 
     // -- GET /api/medicos/especialidad/{especialidad} --
-    // Lista médicos por especialidad
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/especialidad/{especialidad}")
     public ResponseEntity<?> listarPorEspecialidad(
             @PathVariable String especialidad) {
@@ -61,8 +64,9 @@ public class MedicoController {
                     .body(Map.of("error", "Especialidad no válida: " + especialidad));
         }
     }
+
     // -- GET /api/medicos/{id} --
-    // Obtiene un médico por ID (para cargar su configuración actual)
+    @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
         return medicoRepository.findById(id)
@@ -71,7 +75,8 @@ public class MedicoController {
     }
 
     // -- PATCH /api/medicos/{id}/disponibilidad --
-    // Cambia disponibilidad del médico
+    // Solo administradores cambian la disponibilidad
+    @RolRequerido({"ADMINISTRADOR"})
     @PatchMapping("/{id}/disponibilidad")
     public ResponseEntity<?> cambiarDisponibilidad(@PathVariable Long id,
                                                    @RequestBody Map<String, Boolean> body) {
@@ -80,8 +85,10 @@ public class MedicoController {
             return ResponseEntity.ok(medicoRepository.save(m));
         }).orElse(ResponseEntity.notFound().build());
     }
+
     // -- PATCH /api/medicos/{id}/configuracion --
-    // Actualiza la configuración de disponibilidad de un médico (nueva HU)
+    // Solo administradores configuran horarios
+    @RolRequerido({"ADMINISTRADOR"})
     @PatchMapping("/{id}/configuracion")
     public ResponseEntity<?> configurar(
             @PathVariable Long id,
