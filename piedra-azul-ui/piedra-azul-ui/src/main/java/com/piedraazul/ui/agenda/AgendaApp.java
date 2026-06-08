@@ -49,12 +49,15 @@ public class AgendaApp extends Application {
     // Agendar
     private final TextField txtDocumentoPaciente = new TextField();
     private final TextField txtMotivo = new TextField();
+    private final TextField txtBuscarMedico = new TextField();
+    private final ObservableList<Agenda> todasLasCitas = FXCollections.observableArrayList();
     private final DatePicker dpFechaAgendar = new DatePicker();
     private final FlowPane panelFranjasAgendar = new FlowPane();
     private String horaSeleccionadaAgendar = null;
 
     // ComboBox de médicos con nombre+especialidad
     private final ComboBox<String> cbMedicoAgendar = new ComboBox<>();
+    private final ComboBox<String> cbMedicoExportar = new ComboBox<>();
     private final List<Map<String, Object>> datosMedicos = new ArrayList<>();
 
     private final Label lblFeedback = new Label();
@@ -86,11 +89,16 @@ public class AgendaApp extends Application {
         Button btnExportarCSV = boton("Exportar CSV", "#2E7D32");
         btnExportarCSV.setOnAction(e -> exportarCSV());
 
+        cbMedicoExportar.setPromptText("Médico para exportar");
+        cbMedicoExportar.setPrefHeight(36);
+        cbMedicoExportar.setPrefWidth(220);
+
         HBox panelBuscar = new HBox(10,
                 etiqueta("Documento paciente:"), txtDocumentoBuscar,
                 etiqueta("Fecha:"), dpFechaBuscar,
-                btnBuscar, btnCargarTodas, btnExportarCSV);
-        panelBuscar.setAlignment(Pos.CENTER_LEFT);
+                btnBuscar, btnCargarTodas,
+                cbMedicoExportar, btnExportarCSV);
+
 
         VBox seccionBuscar = seccion("🔍  Buscar citas", panelBuscar);
 
@@ -263,7 +271,9 @@ public class AgendaApp extends Application {
                     HttpResponse.BodyHandlers.ofString());
             List<Map<String, Object>> lista = mapper.readValue(
                     response.body(), new TypeReference<>() {});
-            citas.setAll(lista.stream().map(this::mapToCita).toList());
+            List<Agenda> todas = lista.stream().map(this::mapToCita).toList();
+            todasLasCitas.setAll(todas);  // ← NUEVO
+            citas.setAll(todas);
             feedback("✓ " + citas.size() + " citas cargadas", false);
         } catch (Exception e) {
             feedback("✗ No se pudo conectar con el servidor", true);
@@ -313,6 +323,12 @@ public class AgendaApp extends Application {
             citas.setAll(lista.stream().map(this::mapToCita).toList());
             feedback("✓ " + citas.size() + " citas de "
                     + paciente.get("nombre") + " " + paciente.get("apellido"), false);
+
+            List<Agenda> resultado = lista.stream().map(this::mapToCita).toList();
+            todasLasCitas.setAll(resultado);
+            citas.setAll(resultado);
+            txtBuscarMedico.clear();
+
         } catch (Exception e) {
             feedback("✗ Error al buscar: " + e.getMessage(), true);
         }
@@ -702,18 +718,34 @@ public class AgendaApp extends Application {
 
     // ── Exportar CSV ──────────────────────────────────────────────────────
     private void exportarCSV() {
+        String medicoLabel = cbMedicoExportar.getValue();
+        if (medicoLabel == null) {
+            feedback("✗ Seleccione un médico para exportar", true);
+            return;
+        }
+        if (dpFechaBuscar.getValue() == null) {
+            feedback("✗ Seleccione una fecha para exportar", true);
+            return;
+        }
+
+        Long medicoId = getMedicoIdDesdeLabel(medicoLabel);
+        if (medicoId == null) {
+            feedback("✗ Médico no válido", true);
+            return;
+        }
+
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Guardar CSV");
-        fileChooser.setInitialFileName("citas.csv");
+        fileChooser.setTitle("Guardar Excel");
+        fileChooser.setInitialFileName("citas_" + dpFechaBuscar.getValue() + ".xlsx");
         fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("CSV (*.csv)", "*.csv"));
+                new FileChooser.ExtensionFilter("Excel (*.xlsx)", "*.xlsx"));
         File archivo = fileChooser.showSaveDialog(primaryStage);
         if (archivo == null) return;
 
         try {
             String url = "http://localhost:8080/api/citas/export"
-                    + (dpFechaBuscar.getValue() != null
-                    ? "?fecha=" + dpFechaBuscar.getValue() : "");
+                    + "?medicoId=" + medicoId
+                    + "&fecha=" + dpFechaBuscar.getValue();
 
             HttpRequest request = requestAutenticado(url).GET().build();
             HttpResponse<byte[]> response = httpClient.send(request,
@@ -727,7 +759,7 @@ public class AgendaApp extends Application {
             try (FileOutputStream fos = new FileOutputStream(archivo)) {
                 fos.write(response.body());
             }
-            feedback("✓ CSV exportado en: " + archivo.getAbsolutePath(), false);
+            feedback("✓ Excel exportado en: " + archivo.getAbsolutePath(), false);
         } catch (Exception e) {
             feedback("✗ No se pudo exportar: " + e.getMessage(), true);
         }
@@ -750,8 +782,8 @@ public class AgendaApp extends Application {
                             + " · " + m.getOrDefault("especialidad", ""))
                     .toList();
             cbMedicoAgendar.getItems().setAll(labels);
+            cbMedicoExportar.getItems().setAll(labels);
         } catch (Exception e) {
-            // Sin conexión se deja vacío
         }
     }
 
@@ -927,6 +959,22 @@ public class AgendaApp extends Application {
         HBox box = new HBox(5, dot, lbl);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
+    }
+
+    private void filtrarPorMedico() {
+        String busq = txtBuscarMedico.getText().trim().toLowerCase();
+        if (busq.isBlank()) {
+            citas.setAll(todasLasCitas);
+            feedback("✓ " + citas.size() + " citas cargadas", false);
+            return;
+        }
+        List<Agenda> filtradas = todasLasCitas.stream()
+                .filter(a -> a.getMedico() != null
+                        && a.getMedico().toLowerCase().contains(busq))
+                .toList();
+        citas.setAll(filtradas);
+        feedback("✓ " + filtradas.size() + " citas encontradas para médico: "
+                + txtBuscarMedico.getText().trim(), false);
     }
 
     public static void main(String[] args) {
