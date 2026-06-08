@@ -3,6 +3,7 @@ package com.piedraazul.ui.agenda;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -15,18 +16,24 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class AgendaApp extends Application {
 
@@ -35,18 +42,22 @@ public class AgendaApp extends Application {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private final TextField txtMedicoId = new TextField();
+    // Búsqueda por documento de paciente
+    private final TextField txtDocumentoBuscar = new TextField();
     private final DatePicker dpFechaBuscar = new DatePicker();
-    private final TextField txtPacienteId = new TextField();
-    private final TextField txtMotivo = new TextField();
-    private final ComboBox<String> cbMedicoAgendar = new ComboBox<>();
-    private final DatePicker dpFechaAgendar = new DatePicker();
-    private final ComboBox<String> cbHoraAgendar = new ComboBox<>();
-    private final TextField txtCitaIdAccion = new TextField();
-    private final DatePicker dpNuevaFecha = new DatePicker();
-    private final ComboBox<String> cbNuevaHora = new ComboBox<>();
-    private final Label lblFeedback = new Label();
 
+    // Agendar
+    private final TextField txtDocumentoPaciente = new TextField();
+    private final TextField txtMotivo = new TextField();
+    private final DatePicker dpFechaAgendar = new DatePicker();
+    private final FlowPane panelFranjasAgendar = new FlowPane();
+    private String horaSeleccionadaAgendar = null;
+
+    // ComboBox de médicos con nombre+especialidad
+    private final ComboBox<String> cbMedicoAgendar = new ComboBox<>();
+    private final List<Map<String, Object>> datosMedicos = new ArrayList<>();
+
+    private final Label lblFeedback = new Label();
     private Stage primaryStage;
 
     @Override
@@ -57,16 +68,17 @@ public class AgendaApp extends Application {
         titulo.setFont(Font.font("System", FontWeight.BOLD, 22));
         titulo.setTextFill(Color.web("#4C1D95"));
 
-        // ── SECCIÓN BUSCAR ──
-        txtMedicoId.setPromptText("ID del médico");
-        txtMedicoId.setStyle(campoEstilo());
-        txtMedicoId.setPrefHeight(36);
+        // ── SECCIÓN BUSCAR POR DOCUMENTO ──
+        txtDocumentoBuscar.setPromptText("Documento de identidad del paciente");
+        txtDocumentoBuscar.setStyle(campoEstilo());
+        txtDocumentoBuscar.setPrefHeight(36);
+        txtDocumentoBuscar.setPrefWidth(260);
 
-        dpFechaBuscar.setPromptText("Seleccione fecha");
+        dpFechaBuscar.setPromptText("Filtrar por fecha (opcional)");
         dpFechaBuscar.setPrefHeight(36);
 
-        Button btnBuscar = boton("Buscar", "#7B2FBE");
-        btnBuscar.setOnAction(e -> buscarCitas());
+        Button btnBuscar = boton("🔍 Buscar", "#7B2FBE");
+        btnBuscar.setOnAction(e -> buscarCitasPorDocumento());
 
         Button btnCargarTodas = boton("Ver todas", "#4C1D95");
         btnCargarTodas.setOnAction(e -> cargarTodasLasCitas());
@@ -75,21 +87,21 @@ public class AgendaApp extends Application {
         btnExportarCSV.setOnAction(e -> exportarCSV());
 
         HBox panelBuscar = new HBox(10,
-                etiqueta("Médico ID:"), txtMedicoId,
+                etiqueta("Documento paciente:"), txtDocumentoBuscar,
                 etiqueta("Fecha:"), dpFechaBuscar,
                 btnBuscar, btnCargarTodas, btnExportarCSV);
         panelBuscar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox seccionBuscar = seccion(" Buscar citas", panelBuscar);
+        VBox seccionBuscar = seccion("🔍  Buscar citas", panelBuscar);
 
-        // ── TABLA ──
+        // ── TABLA CON BOTONES POR FILA ──
         TableColumn<Agenda, Long> colId = new TableColumn<>("ID");
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colId.setPrefWidth(50);
 
-        TableColumn<Agenda, Long> colPaciente = new TableColumn<>("Paciente ID");
-        colPaciente.setCellValueFactory(new PropertyValueFactory<>("pacienteId"));
-        colPaciente.setPrefWidth(100);
+        TableColumn<Agenda, String> colPaciente = new TableColumn<>("Paciente");
+        colPaciente.setCellValueFactory(new PropertyValueFactory<>("nombrePaciente"));
+        colPaciente.setPrefWidth(150);
 
         TableColumn<Agenda, String> colMedico = new TableColumn<>("Médico");
         colMedico.setCellValueFactory(new PropertyValueFactory<>("medico"));
@@ -97,135 +109,125 @@ public class AgendaApp extends Application {
 
         TableColumn<Agenda, String> colFecha = new TableColumn<>("Fecha y Hora");
         colFecha.setCellValueFactory(new PropertyValueFactory<>("fechaHora"));
-        colFecha.setPrefWidth(150);
+        colFecha.setPrefWidth(140);
 
         TableColumn<Agenda, String> colMotivo = new TableColumn<>("Motivo");
         colMotivo.setCellValueFactory(new PropertyValueFactory<>("motivo"));
-        colMotivo.setPrefWidth(150);
+        colMotivo.setPrefWidth(130);
 
         TableColumn<Agenda, String> colEstado = new TableColumn<>("Estado");
         colEstado.setCellValueFactory(new PropertyValueFactory<>("estado"));
         colEstado.setPrefWidth(100);
 
-        tabla.getColumns().addAll(colId, colPaciente, colMedico,
-                colFecha, colMotivo, colEstado);
-        tabla.setItems(citas);
-        tabla.setPrefHeight(250);
+        // Columna de acciones con botones por fila
+        TableColumn<Agenda, Void> colAcciones = new TableColumn<>("Acciones");
+        colAcciones.setPrefWidth(200);
+        colAcciones.setCellFactory(col -> new TableCell<>() {
+            private final Button btnCancelar  = new Button("✗ Cancelar");
+            private final Button btnReagendar = new Button("↺ Reagendar");
+            private final HBox   caja         = new HBox(6, btnCancelar, btnReagendar);
 
-        // Al seleccionar fila carga el ID en cancelar/reagendar
-        tabla.getSelectionModel().selectedItemProperty().addListener(
-                (obs, anterior, seleccionado) -> {
-                    if (seleccionado != null) {
-                        txtCitaIdAccion.setText(
-                                seleccionado.getId().toString());
-                    }
+            {
+                btnCancelar.setStyle(estiloBotonTabla("#C62828"));
+                btnReagendar.setStyle(estiloBotonTabla("#7B2FBE"));
+                caja.setAlignment(Pos.CENTER);
+
+                btnCancelar.setOnAction(e -> {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    cancelarCita(cita.getId().toString());
                 });
 
-        // ── SECCIÓN AGENDAR ──
-        txtPacienteId.setPromptText("ID del paciente");
-        txtPacienteId.setStyle(campoEstilo());
-        txtPacienteId.setPrefHeight(36);
+                btnReagendar.setOnAction(e -> {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    abrirVentanaReagendar(cita);
+                });
+            }
 
-        cbMedicoAgendar.setPromptText("Seleccione médico");
-        cbMedicoAgendar.setPrefHeight(36);
-        cbMedicoAgendar.setPrefWidth(180);
-
-        txtMotivo.setPromptText("Motivo de la cita");
-        txtMotivo.setStyle(campoEstilo());
-        txtMotivo.setPrefHeight(36);
-
-        dpFechaAgendar.setPromptText("Fecha de la cita");
-        dpFechaAgendar.setPrefHeight(36);
-        // No permitir fechas anteriores a hoy
-        dpFechaAgendar.setDayCellFactory(picker -> new DateCell() {
             @Override
-            public void updateItem(java.time.LocalDate date, boolean empty) {
-                super.updateItem(date, empty);
-                setDisable(empty || date.isBefore(java.time.LocalDate.now()));
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    Agenda cita = getTableView().getItems().get(getIndex());
+                    boolean activa = !"CANCELADA".equals(cita.getEstado())
+                            && !"COMPLETADA".equals(cita.getEstado());
+                    btnCancelar.setDisable(!activa);
+                    btnReagendar.setDisable(!activa);
+                    setGraphic(caja);
+                }
             }
         });
 
-        for (int h = 8; h <= 16; h++) {
-            cbHoraAgendar.getItems().addAll(
-                    String.format("%02d:00", h),
-                    String.format("%02d:30", h));
-        }
-        cbHoraAgendar.setPromptText("Hora");
-        cbHoraAgendar.setPrefHeight(36);
+        tabla.getColumns().addAll(colId, colPaciente, colMedico,
+                colFecha, colMotivo, colEstado, colAcciones);
+        tabla.setItems(citas);
+        tabla.setPrefHeight(260);
+        tabla.setPlaceholder(new Label("No hay citas — use el buscador o 'Ver todas'"));
+
+        // ── SECCIÓN AGENDAR ──
+        txtDocumentoPaciente.setPromptText("Documento de identidad del paciente *");
+        txtDocumentoPaciente.setStyle(campoEstilo());
+        txtDocumentoPaciente.setPrefHeight(36);
+
+        cbMedicoAgendar.setPromptText("Seleccione médico");
+        cbMedicoAgendar.setPrefHeight(36);
+        cbMedicoAgendar.setPrefWidth(260);
+
+        txtMotivo.setPromptText("Motivo de la cita (opcional)");
+        txtMotivo.setStyle(campoEstilo());
+        txtMotivo.setPrefHeight(36);
+
+        dpFechaAgendar.setPromptText("Fecha de la cita *");
+        dpFechaAgendar.setPrefHeight(36);
+        dpFechaAgendar.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                setDisable(empty || date.isBefore(LocalDate.now()));
+            }
+        });
+        dpFechaAgendar.valueProperty().addListener((obs, o, n) -> {
+            horaSeleccionadaAgendar = null;
+            cargarFranjasAgendar();
+        });
+        cbMedicoAgendar.valueProperty().addListener((obs, o, n) -> {
+            horaSeleccionadaAgendar = null;
+            cargarFranjasAgendar();
+        });
+
+        Label lblFranjas = etiqueta("3 · Selecciona una franja libre:");
+        panelFranjasAgendar.setHgap(8);
+        panelFranjasAgendar.setVgap(8);
+        panelFranjasAgendar.setPrefHeight(90);
+        panelFranjasAgendar.getChildren().add(hint("Seleccione médico y fecha primero"));
+
+        HBox leyenda = new HBox(12,
+                chip("libre", "#C084FC", "#EDE9FE"),
+                chip("ocupado", "#9CA3AF", "#F3F4F6"),
+                chip("seleccionado", "#7B2FBE", "#7B2FBE"));
+        leyenda.setAlignment(Pos.CENTER_LEFT);
 
         Button btnAgendar = boton("✓  Agendar cita", "#7B2FBE");
         btnAgendar.setOnAction(e -> agendarCita());
 
         GridPane formularioAgendar = new GridPane();
-        formularioAgendar.setHgap(10);
+        formularioAgendar.setHgap(12);
         formularioAgendar.setVgap(10);
-        formularioAgendar.add(etiqueta("Paciente ID:"), 0, 0);
-        formularioAgendar.add(txtPacienteId, 1, 0);
-        formularioAgendar.add(etiqueta("Médico:"), 2, 0);
+        formularioAgendar.add(etiqueta("1 · Documento paciente *:"), 0, 0);
+        formularioAgendar.add(txtDocumentoPaciente, 1, 0);
+        formularioAgendar.add(etiqueta("2 · Médico *:"), 2, 0);
         formularioAgendar.add(cbMedicoAgendar, 3, 0);
         formularioAgendar.add(etiqueta("Motivo:"), 0, 1);
         formularioAgendar.add(txtMotivo, 1, 1);
-        formularioAgendar.add(etiqueta("Fecha:"), 2, 1);
+        formularioAgendar.add(etiqueta("Fecha *:"), 2, 1);
         formularioAgendar.add(dpFechaAgendar, 3, 1);
-        formularioAgendar.add(etiqueta("Hora:"), 4, 1);
-        formularioAgendar.add(cbHoraAgendar, 5, 1);
-        formularioAgendar.add(btnAgendar, 5, 2);
+        formularioAgendar.add(lblFranjas, 0, 2, 4, 1);
+        formularioAgendar.add(panelFranjasAgendar, 0, 3, 4, 1);
+        formularioAgendar.add(leyenda, 0, 4, 3, 1);
+        formularioAgendar.add(btnAgendar, 3, 4);
 
         VBox seccionAgendar = seccion("📅  Agendar nueva cita", formularioAgendar);
-
-        // --- SECCIÓN CANCELAR / REAGENDAR ---
-        txtCitaIdAccion.setPromptText("ID de la cita");
-        txtCitaIdAccion.setStyle(campoEstilo());
-        txtCitaIdAccion.setPrefHeight(36);
-        txtCitaIdAccion.setPrefWidth(120);
-
-        dpNuevaFecha.setPromptText("Nueva fecha");
-        dpNuevaFecha.setPrefHeight(36);
-        // No permitir fechas anteriores a hoy
-        dpNuevaFecha.setDayCellFactory(picker -> new DateCell() {
-            @Override
-            public void updateItem(java.time.LocalDate date, boolean empty) {
-                super.updateItem(date, empty);
-                setDisable(empty || date.isBefore(java.time.LocalDate.now()));
-            }
-        });
-
-        for (int h = 8; h <= 16; h++) {
-            cbNuevaHora.getItems().addAll(
-                    String.format("%02d:00", h),
-                    String.format("%02d:30", h));
-        }
-        cbNuevaHora.setPromptText("Nueva hora");
-        cbNuevaHora.setPrefHeight(36);
-
-        Button btnCancelar = boton("✗  Cancelar cita", "#C62828");
-        btnCancelar.setOnAction(e -> cancelarCita(txtCitaIdAccion.getText()));
-
-        Button btnReagendar = boton("↺  Reagendar cita", "#7B2FBE");
-        btnReagendar.setOnAction(e -> reagendarCita(
-                txtCitaIdAccion.getText(),
-                dpNuevaFecha.getValue(),
-                cbNuevaHora.getValue()));
-
-        Label lblHintTabla = new Label(
-                "Tip: haga clic en una cita de la tabla para cargar su ID automáticamente");
-        lblHintTabla.setFont(Font.font("System", 11));
-        lblHintTabla.setTextFill(Color.web("#6B7280"));
-
-        GridPane formularioAccion = new GridPane();
-        formularioAccion.setHgap(10);
-        formularioAccion.setVgap(10);
-        formularioAccion.add(etiqueta("Cita ID:"), 0, 0);
-        formularioAccion.add(txtCitaIdAccion, 1, 0);
-        formularioAccion.add(btnCancelar, 2, 0);
-        formularioAccion.add(etiqueta("Nueva fecha:"), 0, 1);
-        formularioAccion.add(dpNuevaFecha, 1, 1);
-        formularioAccion.add(etiqueta("Nueva hora:"), 2, 1);
-        formularioAccion.add(cbNuevaHora, 3, 1);
-        formularioAccion.add(btnReagendar, 4, 1);
-
-        VBox seccionAccion = seccion("✏️  Cancelar / Reagendar cita",
-                new VBox(8, lblHintTabla, formularioAccion));
 
         lblFeedback.setFont(Font.font("System", 13));
         lblFeedback.setWrapText(true);
@@ -235,7 +237,6 @@ public class AgendaApp extends Application {
                 seccionBuscar,
                 tabla,
                 seccionAgendar,
-                seccionAccion,
                 lblFeedback);
         root.setPadding(new Insets(20));
         root.setBackground(new Background(new BackgroundFill(
@@ -249,10 +250,11 @@ public class AgendaApp extends Application {
         cargarTodasLasCitas();
 
         stage.setTitle("Agenda - Piedra Azul");
-        stage.setScene(new Scene(scroll, 1000, 750));
+        stage.setScene(new Scene(scroll, 1050, 780));
         stage.show();
     }
 
+    // ── Cargar todas las citas ────────────────────────────────────────────
     private void cargarTodasLasCitas() {
         try {
             HttpRequest request = requestAutenticado("http://localhost:8080/api/citas")
@@ -268,20 +270,38 @@ public class AgendaApp extends Application {
         }
     }
 
-    private void buscarCitas() {
+    // ── Buscar citas por documento del paciente ───────────────────────────
+    private void buscarCitasPorDocumento() {
+        String documento = txtDocumentoBuscar.getText().trim();
+        if (documento.isBlank()) {
+            feedback("✗ Ingrese el documento del paciente", true);
+            return;
+        }
         try {
-            String medicoId = txtMedicoId.getText().trim();
-            if (medicoId.isBlank()) {
-                feedback("✗ Ingrese el ID del médico", true);
+            // 1. Buscar paciente por documento
+            HttpRequest reqPac = requestAutenticado(
+                    "http://localhost:8080/api/pacientes/documento/" + documento)
+                    .GET().build();
+            HttpResponse<String> respPac = httpClient.send(reqPac,
+                    HttpResponse.BodyHandlers.ofString());
+            if (respPac.statusCode() != 200) {
+                feedback("✗ No se encontró paciente con ese documento", true);
                 return;
             }
-            String url = "http://localhost:8080/api/citas/medico/" + medicoId;
-            HttpRequest request = requestAutenticado(url).GET().build();
-            HttpResponse<String> response = httpClient.send(request,
+            Map<String, Object> paciente = mapper.readValue(
+                    respPac.body(), new TypeReference<>() {});
+            Long pacienteId = Long.parseLong(paciente.get("id").toString());
+
+            // 2. Buscar citas de ese paciente
+            HttpRequest reqCitas = requestAutenticado(
+                    "http://localhost:8080/api/citas/paciente/" + pacienteId)
+                    .GET().build();
+            HttpResponse<String> respCitas = httpClient.send(reqCitas,
                     HttpResponse.BodyHandlers.ofString());
             List<Map<String, Object>> lista = mapper.readValue(
-                    response.body(), new TypeReference<>() {});
+                    respCitas.body(), new TypeReference<>() {});
 
+            // 3. Filtrar por fecha si se eligió
             if (dpFechaBuscar.getValue() != null) {
                 String fecha = dpFechaBuscar.getValue().toString();
                 lista = lista.stream()
@@ -291,31 +311,54 @@ public class AgendaApp extends Application {
                         }).toList();
             }
             citas.setAll(lista.stream().map(this::mapToCita).toList());
-            feedback("✓ " + citas.size() + " citas encontradas", false);
+            feedback("✓ " + citas.size() + " citas de "
+                    + paciente.get("nombre") + " " + paciente.get("apellido"), false);
         } catch (Exception e) {
-            feedback("✗ No se pudo buscar las citas", true);
+            feedback("✗ Error al buscar: " + e.getMessage(), true);
         }
     }
 
+    // ── Agendar cita ─────────────────────────────────────────────────────
     private void agendarCita() {
-        String pacienteId = txtPacienteId.getText().trim();
-        String medicoId = cbMedicoAgendar.getValue();
+        String documento = txtDocumentoPaciente.getText().trim();
+        String medicoLabel = cbMedicoAgendar.getValue();
 
-        if (pacienteId.isBlank() || medicoId == null
+        if (documento.isBlank() || medicoLabel == null
                 || dpFechaAgendar.getValue() == null
-                || cbHoraAgendar.getValue() == null) {
-            feedback("✗ Paciente, médico, fecha y hora son obligatorios", true);
+                || horaSeleccionadaAgendar == null) {
+            feedback("✗ Complete documento, médico, fecha y franja horaria", true);
             return;
         }
 
         try {
+            // Resolver pacienteId desde documento
+            HttpRequest reqPac = requestAutenticado(
+                    "http://localhost:8080/api/pacientes/documento/" + documento)
+                    .GET().build();
+            HttpResponse<String> respPac = httpClient.send(reqPac,
+                    HttpResponse.BodyHandlers.ofString());
+            if (respPac.statusCode() != 200) {
+                feedback("✗ No se encontró paciente con ese documento", true);
+                return;
+            }
+            Map<String, Object> paciente = mapper.readValue(
+                    respPac.body(), new TypeReference<>() {});
+            Long pacienteId = Long.parseLong(paciente.get("id").toString());
+
+            // Resolver medicoId desde el label seleccionado
+            Long medicoId = getMedicoIdDesdeLabel(medicoLabel);
+            if (medicoId == null) {
+                feedback("✗ Médico no válido", true);
+                return;
+            }
+
             String fechaHora = dpFechaAgendar.getValue().toString()
-                    + "T" + cbHoraAgendar.getValue();
+                    + "T" + horaSeleccionadaAgendar;
 
             String json = """
                     {
-                      "pacienteId": %s,
-                      "medicoId": %s,
+                      "pacienteId": %d,
+                      "medicoId": %d,
                       "motivo": "%s",
                       "fechaHoraManual": "%s"
                     }
@@ -341,137 +384,390 @@ public class AgendaApp extends Application {
         }
     }
 
+    // ── Cancelar cita ────────────────────────────────────────────────────
     private void cancelarCita(String citaId) {
-        if (citaId.isBlank()) {
-            feedback("✗ Ingrese el ID de la cita", true);
-            return;
-        }
-        try {
-            HttpRequest request = requestAutenticado(
-                    "http://localhost:8080/api/citas/" + citaId + "/cancelar")
-                    .method("PATCH", HttpRequest.BodyPublishers.noBody())
-                    .build();
-            HttpResponse<String> response = httpClient.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                feedback("✓ Cita cancelada correctamente", false);
-                cargarTodasLasCitas();
-            } else {
-                feedback("✗ Error: " + response.body(), true);
+        if (citaId.isBlank()) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Seguro que desea cancelar la cita #" + citaId + "?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Confirmar cancelación");
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt == ButtonType.YES) {
+                try {
+                    HttpRequest request = requestAutenticado(
+                            "http://localhost:8080/api/citas/" + citaId + "/cancelar")
+                            .method("PATCH", HttpRequest.BodyPublishers.noBody())
+                            .build();
+                    HttpResponse<String> response = httpClient.send(request,
+                            HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() == 200) {
+                        feedback("✓ Cita cancelada correctamente", false);
+                        cargarTodasLasCitas();
+                    } else {
+                        feedback("✗ Error: " + response.body(), true);
+                    }
+                } catch (Exception e) {
+                    feedback("✗ No se pudo cancelar la cita", true);
+                }
             }
-        } catch (Exception e) {
-            feedback("✗ No se pudo cancelar la cita", true);
-        }
+        });
     }
 
-    private void reagendarCita(String citaId,
-                               java.time.LocalDate nuevaFecha,
-                               String nuevaHora) {
-        if (citaId.isBlank() || nuevaFecha == null || nuevaHora == null) {
-            feedback("✗ Ingrese el ID, nueva fecha y hora", true);
-            return;
-        }
-        try {
-            String fechaHora = nuevaFecha.toString() + "T" + nuevaHora;
-            String json = "{\"fechaHora\": \"" + fechaHora + "\"}";
-            HttpRequest request = requestAutenticado(
-                    "http://localhost:8080/api/citas/" + citaId + "/reagendar")
-                    .header("Content-Type", "application/json")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-            HttpResponse<String> response = httpClient.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                feedback("✓ Cita reagendada correctamente", false);
-                cargarTodasLasCitas();
-            } else {
-                feedback("✗ Error: " + response.body(), true);
+    // ── Ventana de reagendamiento con franjas ─────────────────────────────
+    private void abrirVentanaReagendar(Agenda cita) {
+        Stage ventana = new Stage();
+        ventana.initModality(Modality.APPLICATION_MODAL);
+        ventana.setTitle("Reagendar cita #" + cita.getId());
+
+        Label lblInfo = new Label("Cita actual:  " + cita.getMedico()
+                + "  ·  " + cita.getFechaHora());
+        lblInfo.setFont(Font.font("System", FontWeight.BOLD, 13));
+        lblInfo.setTextFill(Color.web("#4C1D95"));
+
+        Label lblFecha = etiqueta("Selecciona la nueva fecha:");
+        DatePicker dpNuevaFecha = new DatePicker();
+        dpNuevaFecha.setMaxWidth(Double.MAX_VALUE);
+        dpNuevaFecha.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                setDisable(empty || date.isBefore(LocalDate.now().plusDays(1)));
             }
-        } catch (Exception e) {
-            feedback("✗ No se pudo reagendar la cita", true);
-        }
+        });
+
+        Label lblFranjas = etiqueta("Selecciona una franja disponible:");
+        FlowPane franjas = new FlowPane();
+        franjas.setHgap(8);
+        franjas.setVgap(8);
+        franjas.setPrefHeight(130);
+        franjas.getChildren().add(hint("Selecciona una fecha para ver las franjas"));
+
+        HBox leyenda = new HBox(12,
+                chip("libre", "#C084FC", "#EDE9FE"),
+                chip("ocupado", "#9CA3AF", "#F3F4F6"),
+                chip("seleccionado", "#7B2FBE", "#7B2FBE"));
+        leyenda.setAlignment(Pos.CENTER_LEFT);
+
+        final String[] horaSeleccionada = {null};
+
+        dpNuevaFecha.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) return;
+            horaSeleccionada[0] = null;
+            franjas.getChildren().setAll(hint("Cargando franjas..."));
+
+            new Thread(() -> {
+                try {
+                    // Datos del médico
+                    HttpRequest reqMedico = requestAutenticado(
+                            "http://localhost:8080/api/medicos/" + cita.getMedicoId())
+                            .GET().build();
+                    HttpResponse<String> respMedico = httpClient.send(
+                            reqMedico, HttpResponse.BodyHandlers.ofString());
+                    Map<String, Object> medico = mapper.readValue(
+                            respMedico.body(), new TypeReference<>() {});
+
+                    String inicioStr = medico.getOrDefault("franjaInicio", "08:00").toString();
+                    String finStr    = medico.getOrDefault("franjaFin",    "17:00").toString();
+                    int intervalo    = Integer.parseInt(
+                            medico.getOrDefault("intervaloCitas", "30").toString());
+
+                    // Citas ocupadas ese día (excluyendo la que se reagenda)
+                    HttpRequest reqCitas = requestAutenticado(
+                            "http://localhost:8080/api/citas/medico/" + cita.getMedicoId())
+                            .GET().build();
+                    HttpResponse<String> respCitas = httpClient.send(
+                            reqCitas, HttpResponse.BodyHandlers.ofString());
+                    List<Map<String, Object>> citasMedico = mapper.readValue(
+                            respCitas.body(), new TypeReference<>() {});
+
+                    Set<String> ocupadas = citasMedico.stream()
+                            .filter(c -> {
+                                String fh = c.getOrDefault("fechaHora", "").toString();
+                                return fh.startsWith(newVal.toString())
+                                        && !c.get("id").toString()
+                                        .equals(cita.getId().toString());
+                            })
+                            .map(c -> c.get("fechaHora").toString().substring(11, 16))
+                            .collect(Collectors.toSet());
+
+                    // Generar slots
+                    LocalTime ini = LocalTime.parse(inicioStr);
+                    LocalTime fin = LocalTime.parse(finStr);
+                    List<LocalTime> slots = new ArrayList<>();
+                    LocalTime cursor = ini;
+                    while (!cursor.isAfter(fin.minusMinutes(intervalo))) {
+                        slots.add(cursor);
+                        cursor = cursor.plusMinutes(intervalo);
+                    }
+
+                    Platform.runLater(() -> {
+                        franjas.getChildren().clear();
+                        DateTimeFormatter hf = DateTimeFormatter.ofPattern("HH:mm");
+                        for (LocalTime slot : slots) {
+                            String hora  = slot.format(hf);
+                            boolean libre = !ocupadas.contains(hora);
+                            Button btn = new Button(hora);
+                            btn.setPrefWidth(72);
+                            btn.setPrefHeight(36);
+                            btn.setFont(Font.font("System", 13));
+                            if (!libre) {
+                                btn.setStyle("""
+                                        -fx-background-color: #F3F4F6;
+                                        -fx-text-fill: #9CA3AF;
+                                        -fx-background-radius: 6;
+                                        """);
+                                btn.setDisable(true);
+                                btn.setTooltip(new Tooltip("Horario ocupado"));
+                            } else {
+                                btn.setStyle(estiloSlotLibre());
+                                btn.setOnAction(ev -> {
+                                    franjas.getChildren().stream()
+                                            .filter(n -> n instanceof Button)
+                                            .map(n -> (Button) n)
+                                            .filter(b -> !b.isDisabled())
+                                            .forEach(b -> b.setStyle(estiloSlotLibre()));
+                                    btn.setStyle(estiloSlotSeleccionado());
+                                    horaSeleccionada[0] = hora;
+                                });
+                            }
+                            franjas.getChildren().add(btn);
+                        }
+                        if (slots.isEmpty()) {
+                            franjas.getChildren().add(hint("Sin franjas para este médico"));
+                        }
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() ->
+                            franjas.getChildren().setAll(hint("Error al cargar franjas")));
+                }
+            }).start();
+        });
+
+        Label lblFeedbackVentana = new Label();
+        lblFeedbackVentana.setFont(Font.font("System", 12));
+        lblFeedbackVentana.setWrapText(true);
+
+        Button btnConfirmar = boton("✓  Confirmar reagendamiento", "#7B2FBE");
+        btnConfirmar.setPrefHeight(40);
+        btnConfirmar.setOnAction(e -> {
+            if (dpNuevaFecha.getValue() == null || horaSeleccionada[0] == null) {
+                lblFeedbackVentana.setText("✗ Selecciona fecha y franja horaria");
+                lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+                return;
+            }
+            String nuevaFechaHora = dpNuevaFecha.getValue() + "T" + horaSeleccionada[0];
+            String json = "{\"fechaHora\": \"" + nuevaFechaHora + "\"}";
+            try {
+                HttpRequest req = requestAutenticado(
+                        "http://localhost:8080/api/citas/" + cita.getId() + "/reagendar")
+                        .header("Content-Type", "application/json")
+                        .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+                        .build();
+                HttpResponse<String> resp = httpClient.send(req,
+                        HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200) {
+                    feedback("✓ Cita reagendada correctamente", false);
+                    cargarTodasLasCitas();
+                    ventana.close();
+                } else {
+                    lblFeedbackVentana.setText("✗ Error: " + resp.body());
+                    lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+                }
+            } catch (Exception ex) {
+                lblFeedbackVentana.setText("✗ Error de conexión");
+                lblFeedbackVentana.setTextFill(Color.web("#DC2626"));
+            }
+        });
+
+        Button btnCerrar = new Button("Cancelar");
+        btnCerrar.setStyle("""
+                -fx-background-color: transparent;
+                -fx-text-fill: #7B2FBE;
+                -fx-border-color: #7B2FBE;
+                -fx-border-radius: 6;
+                -fx-background-radius: 6;
+                -fx-cursor: hand;
+                -fx-padding: 8 16;
+                """);
+        btnCerrar.setOnAction(e -> ventana.close());
+
+        HBox botones = new HBox(10, btnConfirmar, btnCerrar);
+        botones.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox layout = new VBox(12,
+                lblInfo, lblFecha, dpNuevaFecha,
+                lblFranjas, franjas, leyenda,
+                botones, lblFeedbackVentana);
+        layout.setPadding(new Insets(20));
+        layout.setStyle("-fx-background-color: #F5F3FF;");
+
+        ventana.setScene(new Scene(layout, 700, 430));
+        ventana.show();
     }
 
+    // ── Cargar franjas en el formulario de agendar ────────────────────────
+    private void cargarFranjasAgendar() {
+        String medicoLabel = cbMedicoAgendar.getValue();
+        LocalDate fecha = dpFechaAgendar.getValue();
+        if (medicoLabel == null || fecha == null) return;
+
+        Long medicoId = getMedicoIdDesdeLabel(medicoLabel);
+        if (medicoId == null) return;
+
+        Map<String, Object> medicoData = datosMedicos.stream()
+                .filter(m -> medicoId.equals(Long.parseLong(m.get("id").toString())))
+                .findFirst().orElse(null);
+        if (medicoData == null) return;
+
+        String inicioStr = medicoData.getOrDefault("franjaInicio", "08:00").toString();
+        String finStr    = medicoData.getOrDefault("franjaFin",    "17:00").toString();
+        int intervalo    = Integer.parseInt(
+                medicoData.getOrDefault("intervaloCitas", "30").toString());
+
+        panelFranjasAgendar.getChildren().setAll(hint("Cargando franjas..."));
+
+        new Thread(() -> {
+            try {
+                HttpRequest req = requestAutenticado(
+                        "http://localhost:8080/api/citas/medico/" + medicoId)
+                        .GET().build();
+                HttpResponse<String> resp = httpClient.send(req,
+                        HttpResponse.BodyHandlers.ofString());
+                List<Map<String, Object>> citasMedico = mapper.readValue(
+                        resp.body(), new TypeReference<>() {});
+
+                Set<String> ocupadas = citasMedico.stream()
+                        .filter(c -> {
+                            String fh = c.getOrDefault("fechaHora", "").toString();
+                            return fh.startsWith(fecha.toString());
+                        })
+                        .map(c -> c.get("fechaHora").toString().substring(11, 16))
+                        .collect(Collectors.toSet());
+
+                LocalTime ini = LocalTime.parse(inicioStr);
+                LocalTime fin = LocalTime.parse(finStr);
+                List<LocalTime> slots = new ArrayList<>();
+                LocalTime cursor = ini;
+                while (!cursor.isAfter(fin.minusMinutes(intervalo))) {
+                    slots.add(cursor);
+                    cursor = cursor.plusMinutes(intervalo);
+                }
+
+                Platform.runLater(() -> {
+                    panelFranjasAgendar.getChildren().clear();
+                    horaSeleccionadaAgendar = null;
+                    DateTimeFormatter hf = DateTimeFormatter.ofPattern("HH:mm");
+                    for (LocalTime slot : slots) {
+                        String hora  = slot.format(hf);
+                        boolean libre = !ocupadas.contains(hora);
+                        Button btn = new Button(hora);
+                        btn.setPrefWidth(72);
+                        btn.setPrefHeight(36);
+                        btn.setFont(Font.font("System", 13));
+                        if (!libre) {
+                            btn.setStyle("""
+                                    -fx-background-color: #F3F4F6;
+                                    -fx-text-fill: #9CA3AF;
+                                    -fx-background-radius: 6;
+                                    """);
+                            btn.setDisable(true);
+                            btn.setTooltip(new Tooltip("Horario ocupado"));
+                        } else {
+                            btn.setStyle(estiloSlotLibre());
+                            btn.setOnAction(ev -> {
+                                panelFranjasAgendar.getChildren().stream()
+                                        .filter(n -> n instanceof Button)
+                                        .map(n -> (Button) n)
+                                        .filter(b -> !b.isDisabled())
+                                        .forEach(b -> b.setStyle(estiloSlotLibre()));
+                                btn.setStyle(estiloSlotSeleccionado());
+                                horaSeleccionadaAgendar = hora;
+                            });
+                        }
+                        panelFranjasAgendar.getChildren().add(btn);
+                    }
+                    if (slots.isEmpty()) {
+                        panelFranjasAgendar.getChildren().add(
+                                hint("Sin franjas configuradas para este médico"));
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() ->
+                        panelFranjasAgendar.getChildren().setAll(
+                                hint("Error al cargar franjas")));
+            }
+        }).start();
+    }
+
+    // ── Exportar CSV ──────────────────────────────────────────────────────
     private void exportarCSV() {
-        String medicoId = txtMedicoId.getText().trim();
-        String fecha = dpFechaBuscar.getValue() != null
-                ? dpFechaBuscar.getValue().toString() : "";
-
-        if (medicoId.isBlank() || fecha.isBlank()) {
-            feedback("✗ Busque citas por médico y fecha antes de exportar", true);
-            return;
-        }
-
-        // Abrir FileChooser para que el usuario elija dónde guardar
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Guardar CSV");
-        fileChooser.setInitialFileName("citas_" + fecha + ".xlsx");
+        fileChooser.setInitialFileName("citas.csv");
         fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Excel (*.xlsx)", "*.xlsx"));
+                new FileChooser.ExtensionFilter("CSV (*.csv)", "*.csv"));
         File archivo = fileChooser.showSaveDialog(primaryStage);
         if (archivo == null) return;
 
-        // Llamar al endpoint del backend y escribir la respuesta en el archivo
         try {
             String url = "http://localhost:8080/api/citas/export"
-                    + "?medicoId=" + medicoId
-                    + "&fecha=" + fecha;
+                    + (dpFechaBuscar.getValue() != null
+                    ? "?fecha=" + dpFechaBuscar.getValue() : "");
 
             HttpRequest request = requestAutenticado(url).GET().build();
-
-            HttpResponse<byte[]> response = httpClient.send(
-                    request, HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofByteArray());
 
             if (response.statusCode() != 200) {
-                String cuerpoError = new String(response.body(), StandardCharsets.UTF_8);
-                feedback("✗ Error del servidor (" + response.statusCode() + "): "
-                        + cuerpoError, true);
+                feedback("✗ Error del servidor: "
+                        + new String(response.body(), StandardCharsets.UTF_8), true);
                 return;
             }
-
-            byte[] contenidoCsv = response.body();
-
-            if (contenidoCsv == null || contenidoCsv.length == 0) {
-                feedback("⚠ El servidor no devolvió citas para los parámetros indicados", false);
-                return;
-            }
-
-            byte[] bom = new byte[]{ (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
-            boolean yaTieneBom = contenidoCsv.length >= 3
-                    && contenidoCsv[0] == bom[0]
-                    && contenidoCsv[1] == bom[1]
-                    && contenidoCsv[2] == bom[2];
-
-            // Escribir los bytes directamente — xlsx es binario, no lleva BOM
             try (FileOutputStream fos = new FileOutputStream(archivo)) {
-                fos.write(contenidoCsv);
-                fos.flush();
+                fos.write(response.body());
             }
             feedback("✓ CSV exportado en: " + archivo.getAbsolutePath(), false);
-
         } catch (Exception e) {
-            // Muestra el error real para facilitar el diagnóstico
-            feedback("✗ No se pudo exportar el CSV: " + e.getMessage(), true);
+            feedback("✗ No se pudo exportar: " + e.getMessage(), true);
         }
     }
 
+    // ── Cargar médicos con nombre + especialidad ──────────────────────────
     private void cargarMedicos() {
         try {
-            HttpRequest request = requestAutenticado("http://localhost:8080/api/medicos")
+            HttpRequest request = requestAutenticado(
+                    "http://localhost:8080/api/medicos/disponibles")
                     .GET().build();
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString());
             List<Map<String, Object>> lista = mapper.readValue(
                     response.body(), new TypeReference<>() {});
-            List<String> ids = lista.stream()
-                    .map(m -> m.get("id").toString())
+            datosMedicos.clear();
+            datosMedicos.addAll(lista);
+            List<String> labels = lista.stream()
+                    .map(m -> m.get("nombre") + " " + m.get("apellido")
+                            + " · " + m.getOrDefault("especialidad", ""))
                     .toList();
-            cbMedicoAgendar.getItems().setAll(ids);
+            cbMedicoAgendar.getItems().setAll(labels);
         } catch (Exception e) {
-            // Si no hay conexión se deja vacío
+            // Sin conexión se deja vacío
         }
     }
 
+    // ── Obtener medicoId a partir del label del ComboBox ─────────────────
+    private Long getMedicoIdDesdeLabel(String label) {
+        return datosMedicos.stream()
+                .filter(m -> {
+                    String lbl = m.get("nombre") + " " + m.get("apellido")
+                            + " · " + m.getOrDefault("especialidad", "");
+                    return lbl.equals(label);
+                })
+                .map(m -> Long.parseLong(m.get("id").toString()))
+                .findFirst().orElse(null);
+    }
+
+    // ── Mapear respuesta a objeto Agenda ──────────────────────────────────
     private Agenda mapToCita(Map<String, Object> m) {
         Agenda a = new Agenda();
         a.setId(m.get("id") != null
@@ -480,6 +776,7 @@ public class AgendaApp extends Application {
                 ? Long.parseLong(m.get("pacienteId").toString()) : 0L);
         if (m.get("medico") instanceof Map<?, ?> medico) {
             a.setMedico(medico.get("nombre") + " " + medico.get("apellido"));
+            a.setMedicoId(Long.parseLong(medico.get("id").toString()));
         }
         a.setFechaHora(m.get("fechaHora") != null
                 ? m.get("fechaHora").toString() : "");
@@ -487,15 +784,37 @@ public class AgendaApp extends Application {
                 ? m.get("motivo").toString() : "");
         a.setEstado(m.get("estado") != null
                 ? m.get("estado").toString() : "");
+
+        // Resolver nombre y documento del paciente
+        try {
+            HttpRequest reqPac = requestAutenticado(
+                    "http://localhost:8080/api/pacientes/" + a.getPacienteId())
+                    .GET().build();
+            HttpResponse<String> respPac = httpClient.send(reqPac,
+                    HttpResponse.BodyHandlers.ofString());
+            if (respPac.statusCode() == 200) {
+                Map<String, Object> paciente = mapper.readValue(
+                        respPac.body(), new TypeReference<>() {});
+                String nombre = paciente.get("nombre") + " " + paciente.get("apellido");
+                String doc    = paciente.getOrDefault("numeroDocumento", "").toString();
+                a.setNombrePaciente(nombre + " · " + doc);
+            } else {
+                a.setNombrePaciente("ID: " + a.getPacienteId());
+            }
+        } catch (Exception e) {
+            a.setNombrePaciente("ID: " + a.getPacienteId());
+        }
+
         return a;
     }
 
     private void limpiarFormulario() {
-        txtPacienteId.clear();
+        txtDocumentoPaciente.clear();
         txtMotivo.clear();
         dpFechaAgendar.setValue(null);
-        cbHoraAgendar.setValue(null);
         cbMedicoAgendar.setValue(null);
+        horaSeleccionadaAgendar = null;
+        panelFranjasAgendar.getChildren().setAll(hint("Seleccione médico y fecha primero"));
     }
 
     private void feedback(String mensaje, boolean error) {
@@ -504,11 +823,20 @@ public class AgendaApp extends Application {
                 ? Color.web("#DC2626") : Color.web("#059669"));
     }
 
+    // ── Helper JWT ────────────────────────────────────────────────────────
+    private HttpRequest.Builder requestAutenticado(String url) {
+        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+        if (token != null) builder.header("Authorization", "Bearer " + token);
+        return builder;
+    }
+
+    // ── Estilos ───────────────────────────────────────────────────────────
     private VBox seccion(String titulo, javafx.scene.Node contenido) {
         Label lblTitulo = new Label(titulo);
         lblTitulo.setFont(Font.font("System", FontWeight.BOLD, 13));
         lblTitulo.setTextFill(Color.web("#4C1D95"));
-
         VBox caja = new VBox(8, lblTitulo, contenido);
         caja.setPadding(new Insets(12));
         caja.setBackground(new Background(new BackgroundFill(
@@ -528,11 +856,28 @@ public class AgendaApp extends Application {
         return btn;
     }
 
+    private String estiloBotonTabla(String color) {
+        return "-fx-background-color: " + color + ";"
+                + "-fx-text-fill: white;"
+                + "-fx-font-size: 11px;"
+                + "-fx-font-weight: bold;"
+                + "-fx-background-radius: 5;"
+                + "-fx-cursor: hand;"
+                + "-fx-padding: 4 8;";
+    }
+
     private Label etiqueta(String texto) {
         Label lbl = new Label(texto);
         lbl.setFont(Font.font("System", FontWeight.BOLD, 12));
         lbl.setTextFill(Color.web("#4C1D95"));
         return lbl;
+    }
+
+    private Label hint(String texto) {
+        Label l = new Label(texto);
+        l.setFont(Font.font("System", 12));
+        l.setTextFill(Color.web("#6B7280"));
+        return l;
     }
 
     private String campoEstilo() {
@@ -545,14 +890,43 @@ public class AgendaApp extends Application {
                 -fx-font-size: 13px;
                 """;
     }
-    private HttpRequest.Builder requestAutenticado(String url) {
-        String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url));
-        if (token != null) {
-            builder.header("Authorization", "Bearer " + token);
-        }
-        return builder;
+
+    private String estiloSlotLibre() {
+        return """
+                -fx-background-color: #EDE9FE;
+                -fx-text-fill: #4C1D95;
+                -fx-border-color: #C084FC;
+                -fx-border-radius: 6;
+                -fx-background-radius: 6;
+                -fx-cursor: hand;
+                """;
+    }
+
+    private String estiloSlotSeleccionado() {
+        return """
+                -fx-background-color: #7B2FBE;
+                -fx-text-fill: white;
+                -fx-border-color: #6D28D9;
+                -fx-border-radius: 6;
+                -fx-background-radius: 6;
+                -fx-cursor: hand;
+                -fx-font-weight: bold;
+                """;
+    }
+
+    private HBox chip(String texto, String colorBorde, String colorFondo) {
+        Region dot = new Region();
+        dot.setPrefSize(14, 14);
+        dot.setStyle("-fx-background-color: " + colorFondo + ";"
+                + "-fx-border-color: " + colorBorde + ";"
+                + "-fx-border-radius: 3;"
+                + "-fx-background-radius: 3;");
+        Label lbl = new Label(texto);
+        lbl.setFont(Font.font("System", 11));
+        lbl.setTextFill(Color.web("#6B7280"));
+        HBox box = new HBox(5, dot, lbl);
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
     }
 
     public static void main(String[] args) {
