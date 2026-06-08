@@ -79,4 +79,24 @@ public class UsuarioService {
     public boolean existePacienteConUsuario(Long pacienteId) {
         return usuarioRepository.existsByPacienteId(pacienteId);
     }
+    // -- Actualizar datos del usuario --
+    public Usuario actualizarDatos(Long id, String nombre, String email, String nuevaPassword) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + id));
+
+        if (nombre != null && !nombre.isBlank())
+            usuario.setNombre(nombre);
+
+        if (email != null && !email.isBlank()
+                && !email.equals(usuario.getEmail())) {
+            if (usuarioRepository.existsByEmail(email))
+                throw new RuntimeException("El email ya está registrado: " + email);
+            usuario.setEmail(email);
+        }
+
+        if (nuevaPassword != null && !nuevaPassword.isBlank())
+            usuario.setPassword(passwordEncoder.encode(nuevaPassword));
+
+        return usuarioRepository.save(usuario);
+    }
 }

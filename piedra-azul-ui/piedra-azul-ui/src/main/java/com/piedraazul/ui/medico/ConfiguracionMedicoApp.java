@@ -229,13 +229,71 @@ public class ConfiguracionMedicoApp extends Application {
             feedback("La hora de inicio debe ser anterior a la hora de fin.", true);
             return;
         }
-
-
         if (medicoId == null) {
-            feedback("✗ No se pudo identificar el médico. Cierre sesión y vuelva a ingresar.", true);
+            feedback("✗ No se pudo identificar el médico.", true);
             return;
         }
 
+        // Verificar si hay citas programadas que quedarían fuera de la nueva franja
+        try {
+            HttpRequest.Builder reqCitas = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/api/citas/medico/" + medicoId))
+                    .GET();
+            String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+            if (token != null) reqCitas.header("Authorization", "Bearer " + token);
+
+            HttpResponse<String> respCitas = httpClient.send(
+                    reqCitas.build(), HttpResponse.BodyHandlers.ofString());
+
+            if (respCitas.statusCode() == 200) {
+                java.util.List<java.util.Map<String, Object>> citas = mapper.readValue(
+                        respCitas.body(), new TypeReference<>() {});
+
+                // Contar citas PROGRAMADAS que quedan fuera de la nueva franja
+                String inicioFinal = inicio;
+                String finFinal = fin;
+                long citasAfectadas = citas.stream()
+                        .filter(c -> {
+                            String estado = (String) c.getOrDefault("estado", "");
+                            if (!estado.equals("PROGRAMADA")) return false;
+                            String fechaHora = (String) c.get("fechaHora");
+                            if (fechaHora == null) return false;
+                            // Extraer solo la hora HH:mm
+                            String hora = fechaHora.substring(11, 16);
+                            return hora.compareTo(inicioFinal) < 0
+                                    || hora.compareTo(finFinal) >= 0;
+                        })
+                        .count();
+
+                if (citasAfectadas > 0) {
+                    // Mostrar advertencia y pedir confirmación
+                    Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
+                    alerta.setTitle("Advertencia");
+                    alerta.setHeaderText("Citas fuera de la nueva franja horaria");
+                    alerta.setContentText(
+                            "Tienes " + citasAfectadas + " cita(s) programada(s) que "
+                                    + "quedarían fuera de tu nueva franja horaria ("
+                                    + inicio + " - " + fin + ").\n\n"
+                                    + "El agendador deberá reubicarlas manualmente.\n\n"
+                                    + "¿Deseas continuar de todas formas?");
+
+                    alerta.showAndWait().ifPresent(respuesta -> {
+                        if (respuesta == ButtonType.OK) {
+                            ejecutarGuardado(dias, inicioFinal, finFinal, intervalo, ventana);
+                        }
+                    });
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            // Si no se puede verificar, continuar con el guardado
+        }
+
+        ejecutarGuardado(dias, inicio, fin, intervalo, ventana);
+    }
+
+    private void ejecutarGuardado(String dias, String inicio, String fin,
+                                  String intervalo, int ventana) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("diasAtencion",   dias);
@@ -244,21 +302,21 @@ public class ConfiguracionMedicoApp extends Application {
             body.put("intervaloCitas", Integer.parseInt(intervalo.split(" ")[0]));
             body.put("ventanaSemanas", ventana);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:8080/api/medicos/"
                             + medicoId + "/configuracion"))
                     .header("Content-Type", "application/json")
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(
-                            mapper.writeValueAsString(body)))
-                    .build();
+                            mapper.writeValueAsString(body)));
+            String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+            if (token != null) builder.header("Authorization", "Bearer " + token);
 
             HttpResponse<String> response = httpClient.send(
-                    request, HttpResponse.BodyHandlers.ofString());
+                    builder.build(), HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
                 feedback("✓ Configuración guardada correctamente.", false);
             } else {
-                // Usar TypeReference para obtener Map tipado y evitar warning
                 Map<String, Object> err = mapper.readValue(
                         response.body(), new TypeReference<Map<String, Object>>() {});
                 feedback("✗ " + err.getOrDefault("error", "Error desconocido"), true);
@@ -272,9 +330,12 @@ public class ConfiguracionMedicoApp extends Application {
     private void cargarConfiguracionActual() {
         if (medicoId == null) return;
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:8080/api/medicos/" + medicoId))
-                    .GET().build();
+                    .GET();
+            String token = com.piedraazul.ui.app.PiedraAzulApp.getToken();
+            if (token != null) builder.header("Authorization", "Bearer " + token);
+            HttpRequest request = builder.build();
 
             HttpResponse<String> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.ofString());

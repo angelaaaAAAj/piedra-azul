@@ -145,8 +145,10 @@ public class PiedraAzulApp extends Application {
                     lblError.setText("");
                     Long medicoId = data.get("medicoId") != null
                             ? Long.parseLong(data.get("medicoId").toString()) : null;
+                    Long usuarioId = data.get("usuarioId") != null
+                            ? Long.parseLong(data.get("usuarioId").toString()) : null;
                     tokenSesion = (String) data.get("token");
-                    abrirMenuPrincipal(stage, rol, nombre, pacienteId, medicoId);
+                    abrirMenuPrincipal(stage, rol, nombre, pacienteId, medicoId, usuarioId);
                 } else {
                     lblError.setText("Usuario o contraseña incorrectos.");
                 }
@@ -185,7 +187,7 @@ public class PiedraAzulApp extends Application {
     }
 
     // ---- MENÚ SEGÚN ROL -----
-    private void abrirMenuPrincipal(Stage stage, String rol, String nombre, Long pacienteId, Long medicoId) {
+    private void abrirMenuPrincipal(Stage stage, String rol, String nombre, Long pacienteId, Long medicoId, Long usuarioId) {
         VBox menu = new VBox(16);
         menu.setAlignment(Pos.CENTER);
         menu.setPadding(new Insets(40));

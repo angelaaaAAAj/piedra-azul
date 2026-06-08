@@ -148,13 +148,14 @@ public class AuthController {
                     );
 
                     Map<String, Object> response = new HashMap<>();
-                    response.put("token",      token);           //
+                    response.put("token",      token);
                     response.put("mensaje",    "Login exitoso");
                     response.put("username",   u.getUsername());
                     response.put("rol",        u.getRol().name());
                     response.put("nombre",     u.getNombre());
                     response.put("medicoId",   u.getMedicoId());
                     response.put("pacienteId", u.getPacienteId());
+                    response.put("usuarioId",  u.getId());
                     return ResponseEntity.ok(response);
                 })
                 .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -185,6 +186,28 @@ public class AuthController {
             return ResponseEntity.ok(usuarioService.desactivarUsuario(id));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+    // -- PATCH /api/auth/usuarios/{id}/perfil --
+// Actualiza nombre, email y/o contraseña del usuario
+    @PatchMapping("/usuarios/{id}/perfil")
+    public ResponseEntity<?> actualizarPerfil(@PathVariable Long id,
+                                              @RequestBody Map<String, String> body) {
+        try {
+            Usuario usuario = usuarioService.actualizarDatos(
+                    id,
+                    body.get("nombre"),
+                    body.get("email"),
+                    body.get("nuevaPassword")
+            );
+            return ResponseEntity.ok(Map.of(
+                    "mensaje", "Perfil actualizado correctamente",
+                    "nombre",  usuario.getNombre(),
+                    "email",   usuario.getEmail()
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 }
