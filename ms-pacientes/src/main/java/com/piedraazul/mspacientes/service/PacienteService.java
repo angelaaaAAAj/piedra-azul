@@ -4,19 +4,21 @@ import com.piedraazul.mspacientes.dto.PacienteDTO;
 import com.piedraazul.mspacientes.event.PacienteCreadoEvent;
 import com.piedraazul.mspacientes.model.EstadoPaciente;
 import com.piedraazul.mspacientes.model.Paciente;
-import com.piedraazul.mspacientes.model.PacienteBuilder;
 import com.piedraazul.mspacientes.repository.PacienteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import com.piedraazul.mspacientes.model.PacienteFactory;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ public class PacienteService {
 
     private final PacienteRepository pacienteRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final RestTemplate restTemplate;
 
     public Paciente registrar(PacienteDTO dto, String origen) {
 
@@ -115,34 +118,38 @@ public class PacienteService {
     }
     private void enviarAuditoriaPacienteRegistrado(Paciente paciente, String origen) {
         try {
-            String json = """
-                {
-                  "tipoEvento": "PACIENTE_REGISTRADO",
-                  "descripcion": "Se registró el paciente %s %s",
-                  "entidadId": "%s",
-                  "realizadoPor": "%s",
-                  "microservicioOrigen": "ms-pacientes"
-                }
-                """.formatted(
-                    paciente.getNombre(),
-                    paciente.getApellido(),
-                    paciente.getId(),
-                    origen
+            Map<String, String> body = Map.of(
+                    "tipoEvento",          "PACIENTE_REGISTRADO",
+                    "descripcion",         "Se registró el paciente " + paciente.getNombre()
+                            + " " + paciente.getApellido(),
+                    "entidadId",           String.valueOf(paciente.getId()),
+                    "realizadoPor",        origen,
+                    "microservicioOrigen", "ms-pacientes"
             );
 
-            HttpClient client = HttpClient.newHttpClient();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8085/api/auditoria"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
+            String rol = obtenerRolDelContexto();
+            headers.set("X-User-Role", rol != null ? rol : "ADMINISTRADOR");
 
-            client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+            restTemplate.postForObject("http://localhost:8085/api/auditoria", request, Map.class);
 
         } catch (Exception e) {
             System.out.println("No se pudo enviar auditoría: " + e.getMessage());
         }
+    }
+
+    private String obtenerRolDelContexto() {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                return attrs.getRequest().getHeader("X-User-Role");
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
     public Optional<Paciente> buscarPorId(Long id) {
         return pacienteRepository.findById(id);
