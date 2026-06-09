@@ -33,6 +33,12 @@ public class CitaRepositoryAdapter implements CitaRepositoryPort {
     }
 
     @Override
+    public boolean existeHorarioOcupadoActivo(Long medicoId, LocalDateTime fechaHora) {
+        return jpa.existsActiveByMedicoIdAndFechaHora(medicoId, fechaHora);
+    }
+
+    @Override
+    @Deprecated
     public boolean existeHorarioOcupado(Long medicoId, LocalDateTime fechaHora) {
         return jpa.existsByMedicoIdAndFechaHora(medicoId, fechaHora);
     }

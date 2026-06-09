@@ -36,7 +36,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     private static final List<String> RUTAS_PUBLICAS = List.of(
             "/api/auth/login",
             "/api/auth/registro/paciente-nuevo",
-            "/api/auth/registro/paciente-existente"
+            "/api/auth/registro/paciente-existente",
+            "/api/pacientes/documento/"
     );
 
     @Override

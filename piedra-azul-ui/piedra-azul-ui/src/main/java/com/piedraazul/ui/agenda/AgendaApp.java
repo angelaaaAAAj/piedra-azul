@@ -84,6 +84,8 @@ public class AgendaApp extends Application {
         btnBuscar.setOnAction(e -> buscarCitasPorDocumento());
 
         Button btnCargarTodas = boton("Ver todas", "#4C1D95");
+        Button btnActualizar = boton("🔄 Actualizar", "#2563EB");
+        btnActualizar.setOnAction(e -> cargarTodasLasCitas());
         btnCargarTodas.setOnAction(e -> cargarTodasLasCitas());
 
         Button btnExportarCSV = boton("Exportar CSV", "#2E7D32");
@@ -93,11 +95,16 @@ public class AgendaApp extends Application {
         cbMedicoExportar.setPrefHeight(36);
         cbMedicoExportar.setPrefWidth(220);
 
-        HBox panelBuscar = new HBox(10,
+        HBox panelBuscar = new HBox(
+                10,
                 etiqueta("Documento paciente:"), txtDocumentoBuscar,
                 etiqueta("Fecha:"), dpFechaBuscar,
-                btnBuscar, btnCargarTodas,
-                cbMedicoExportar, btnExportarCSV);
+                btnBuscar,
+                btnCargarTodas,
+                btnActualizar,
+                cbMedicoExportar,
+                btnExportarCSV
+        );
 
 
         VBox seccionBuscar = seccion("🔍  Buscar citas", panelBuscar);
@@ -151,18 +158,48 @@ public class AgendaApp extends Application {
                 });
             }
 
+            // REEMPLAZAR el updateItem completo:
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty) {
                     setGraphic(null);
-                } else {
-                    Agenda cita = getTableView().getItems().get(getIndex());
-                    boolean activa = !"CANCELADA".equals(cita.getEstado())
-                            && !"COMPLETADA".equals(cita.getEstado());
-                    btnCancelar.setDisable(!activa);
-                    btnReagendar.setDisable(!activa);
-                    setGraphic(caja);
+                    return;
+                }
+                Agenda cita = getTableView().getItems().get(getIndex());
+                String estado = cita.getEstado();
+
+                switch (estado) {
+                    case "COMPLETADA" -> {
+                        Label badge = new Label("✓ Atendida");
+                        badge.setStyle(
+                                "-fx-background-color: #D1FAE5;" +
+                                        "-fx-text-fill: #065F46;" +
+                                        "-fx-font-weight: bold;" +
+                                        "-fx-font-size: 11px;" +
+                                        "-fx-padding: 4 12;" +
+                                        "-fx-background-radius: 999;"
+                        );
+                        setGraphic(badge);
+                    }
+                    case "CANCELADA" -> {
+                        Label badge = new Label("✗ Cancelada");
+                        badge.setStyle(
+                                "-fx-background-color: #FEE2E2;" +
+                                        "-fx-text-fill: #991B1B;" +
+                                        "-fx-font-weight: bold;" +
+                                        "-fx-font-size: 11px;" +
+                                        "-fx-padding: 4 12;" +
+                                        "-fx-background-radius: 999;"
+                        );
+                        setGraphic(badge);
+                    }
+                    // PROGRAMADA y REAGENDADA → botones activos
+                    default -> {
+                        btnCancelar.setDisable(false);
+                        btnReagendar.setDisable(false);
+                        setGraphic(caja);
+                    }
                 }
             }
         });
@@ -282,52 +319,86 @@ public class AgendaApp extends Application {
 
     // ── Buscar citas por documento del paciente ───────────────────────────
     private void buscarCitasPorDocumento() {
+
         String documento = txtDocumentoBuscar.getText().trim();
-        if (documento.isBlank()) {
-            feedback("✗ Ingrese el documento del paciente", true);
+        LocalDate fechaSeleccionada = dpFechaBuscar.getValue();
+
+        if (documento.isBlank() && fechaSeleccionada == null) {
+            feedback("✗ Ingrese documento o seleccione una fecha", true);
             return;
         }
+
         try {
-            // 1. Buscar paciente por documento
+
+            // CASO 1: SOLO FECHA
+            if (documento.isBlank()) {
+
+                List<Agenda> resultado = todasLasCitas.stream()
+                        .filter(c -> c.getFechaHora() != null
+                                && c.getFechaHora().startsWith(fechaSeleccionada.toString()))
+                        .toList();
+
+                citas.setAll(resultado);
+
+                feedback("✓ " + resultado.size()
+                        + " citas encontradas para "
+                        + fechaSeleccionada, false);
+
+                return;
+            }
+
+            // CASO 2 Y 3: DOCUMENTO O DOCUMENTO + FECHA
+
             HttpRequest reqPac = requestAutenticado(
                     "http://localhost:8080/api/pacientes/documento/" + documento)
                     .GET().build();
-            HttpResponse<String> respPac = httpClient.send(reqPac,
+
+            HttpResponse<String> respPac = httpClient.send(
+                    reqPac,
                     HttpResponse.BodyHandlers.ofString());
+
             if (respPac.statusCode() != 200) {
                 feedback("✗ No se encontró paciente con ese documento", true);
                 return;
             }
-            Map<String, Object> paciente = mapper.readValue(
-                    respPac.body(), new TypeReference<>() {});
-            Long pacienteId = Long.parseLong(paciente.get("id").toString());
 
-            // 2. Buscar citas de ese paciente
+            Map<String, Object> paciente = mapper.readValue(
+                    respPac.body(),
+                    new TypeReference<>() {});
+
+            Long pacienteId = Long.parseLong(
+                    paciente.get("id").toString());
+
             HttpRequest reqCitas = requestAutenticado(
                     "http://localhost:8080/api/citas/paciente/" + pacienteId)
                     .GET().build();
-            HttpResponse<String> respCitas = httpClient.send(reqCitas,
+
+            HttpResponse<String> respCitas = httpClient.send(
+                    reqCitas,
                     HttpResponse.BodyHandlers.ofString());
+
             List<Map<String, Object>> lista = mapper.readValue(
-                    respCitas.body(), new TypeReference<>() {});
+                    respCitas.body(),
+                    new TypeReference<>() {});
 
-            // 3. Filtrar por fecha si se eligió
-            if (dpFechaBuscar.getValue() != null) {
-                String fecha = dpFechaBuscar.getValue().toString();
+            // Si también seleccionó fecha
+            if (fechaSeleccionada != null) {
+
                 lista = lista.stream()
-                        .filter(m -> {
-                            String fh = (String) m.get("fechaHora");
-                            return fh != null && fh.startsWith(fecha);
-                        }).toList();
+                        .filter(c -> {
+                            String fh = c.get("fechaHora").toString();
+                            return fh.startsWith(fechaSeleccionada.toString());
+                        })
+                        .toList();
             }
-            citas.setAll(lista.stream().map(this::mapToCita).toList());
-            feedback("✓ " + citas.size() + " citas de "
-                    + paciente.get("nombre") + " " + paciente.get("apellido"), false);
 
-            List<Agenda> resultado = lista.stream().map(this::mapToCita).toList();
-            todasLasCitas.setAll(resultado);
-            citas.setAll(resultado);
-            txtBuscarMedico.clear();
+            citas.setAll(
+                    lista.stream()
+                            .map(this::mapToCita)
+                            .toList());
+
+            feedback("✓ " + citas.size()
+                    + " citas encontradas", false);
 
         } catch (Exception e) {
             feedback("✗ Error al buscar: " + e.getMessage(), true);

@@ -3,8 +3,12 @@ package com.piedraazul.msagenda.infrastructure.adapters.out.http;
 import com.piedraazul.msagenda.application.ports.out.HistorialClientPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -32,10 +36,33 @@ public class HistorialClientAdapter implements HistorialClientPort {
                     "motivoCambio",  motivoCambio != null ? motivoCambio : "Reagendamiento",
                     "cambiadoPor",   cambiadoPor  != null ? cambiadoPor  : "sistema"
             );
-            restTemplate.postForObject(URL, body, Map.class);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+
+            // Propagar el rol que el API Gateway dejó en el request entrante
+            String rol = obtenerRolDelContexto();
+            if (rol != null) {
+                headers.set("X-User-Role", rol);
+            }
+
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+            restTemplate.postForObject(URL, request, Map.class);
             log.info("Reagendamiento registrado en ms-historial — citaId: {}", citaId);
         } catch (Exception e) {
             log.warn("No se pudo notificar reagendamiento a ms-historial: {}", e.getMessage());
         }
+    }
+
+    // Lee el rol del request HTTP entrante (puesto por el API Gateway)
+    private String obtenerRolDelContexto() {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                return attrs.getRequest().getHeader("X-User-Role");
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 }

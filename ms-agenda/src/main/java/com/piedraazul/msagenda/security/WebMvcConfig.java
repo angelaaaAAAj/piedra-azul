@@ -14,7 +14,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(rolInterceptor)
-                .addPathPatterns("/api/**");
+                .addPathPatterns("/api/**")
+                .excludePathPatterns(
+                        "/api/citas/{id}",
+                        "/api/citas/medico/**",
+                        "/api/medicos/**",
+                        "/api/historial/reagendamiento"
+                );
     }
 }
 

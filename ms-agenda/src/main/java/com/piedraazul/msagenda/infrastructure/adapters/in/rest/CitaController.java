@@ -7,6 +7,7 @@ import com.piedraazul.msagenda.application.ports.in.CancelarCitaUseCase;
 import com.piedraazul.msagenda.application.ports.out.CitaRepositoryPort;
 import com.piedraazul.msagenda.domain.model.Cita;
 import com.piedraazul.msagenda.infrastructure.adapters.in.rest.dto.CitaDTO;
+import com.piedraazul.msagenda.infrastructure.adapters.in.rest.dto.CitaResponseDTO;
 import com.piedraazul.msagenda.security.RolRequerido;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -48,7 +49,9 @@ public class CitaController {
     public ResponseEntity<?> agendar(@Valid @RequestBody CitaDTO dto) {
         try {
             Cita cita = agendarUseCase.agendar(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(cita);
+            // Convertir a DTO para evitar LazyInitializationException
+            CitaResponseDTO response = CitaResponseDTO.fromEntity(cita);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
@@ -59,22 +62,34 @@ public class CitaController {
     // Solo personal interno puede ver todas las citas
     @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping
-    public ResponseEntity<List<Cita>> listarTodas() {
-        return ResponseEntity.ok(citaPort.listarTodas());
+    public ResponseEntity<List<CitaResponseDTO>> listarTodas() {
+        return ResponseEntity.ok(
+            citaPort.listarTodas().stream()
+                .map(CitaResponseDTO::fromEntity)
+                .toList()
+        );
     }
 
     // -- GET /api/citas/medico/{medicoId} --
     @RolRequerido({"MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/medico/{medicoId}")
-    public ResponseEntity<List<Cita>> listarPorMedico(@PathVariable Long medicoId) {
-        return ResponseEntity.ok(citaPort.listarPorMedico(medicoId));
+    public ResponseEntity<List<CitaResponseDTO>> listarPorMedico(@PathVariable Long medicoId) {
+        return ResponseEntity.ok(
+            citaPort.listarPorMedico(medicoId).stream()
+                .map(CitaResponseDTO::fromEntity)
+                .toList()
+        );
     }
 
     // -- GET /api/citas/paciente/{pacienteId} --
     @RolRequerido({"PACIENTE", "MEDICO_TERAPISTA", "AGENDADOR", "ADMINISTRADOR"})
     @GetMapping("/paciente/{pacienteId}")
-    public ResponseEntity<List<Cita>> listarPorPaciente(@PathVariable Long pacienteId) {
-        return ResponseEntity.ok(citaPort.listarPorPaciente(pacienteId));
+    public ResponseEntity<List<CitaResponseDTO>> listarPorPaciente(@PathVariable Long pacienteId) {
+        return ResponseEntity.ok(
+            citaPort.listarPorPaciente(pacienteId).stream()
+                .map(CitaResponseDTO::fromEntity)
+                .toList()
+        );
     }
 
     // -- GET /api/citas/export --
@@ -177,7 +192,9 @@ public class CitaController {
     @PatchMapping("/{id}/cancelar")
     public ResponseEntity<?> cancelar(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(cancelarUseCase.cancelar(id));
+            Cita cita = cancelarUseCase.cancelar(id);
+            CitaResponseDTO response = CitaResponseDTO.fromEntity(cita);
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
@@ -190,8 +207,9 @@ public class CitaController {
     public ResponseEntity<?> reagendar(@PathVariable Long id,
                                        @RequestBody Map<String, String> body) {
         try {
-            return ResponseEntity.ok(
-                    reagendarUseCase.reagendar(id, body.get("fechaHora")));
+            Cita cita = reagendarUseCase.reagendar(id, body.get("fechaHora"));
+            CitaResponseDTO response = CitaResponseDTO.fromEntity(cita);
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
@@ -204,7 +222,21 @@ public class CitaController {
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
         return citaPort.buscarPorId(id)
-                .map(ResponseEntity::ok)
+                .map(c -> ResponseEntity.ok(CitaResponseDTO.fromEntity(c)))
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @RolRequerido({"MEDICO_TERAPISTA"})
+    @PatchMapping("/{id}/completar")
+    public ResponseEntity<?> completar(@PathVariable Long id) {
+        try {
+            Cita cita = cancelarUseCase.completar(id);
+            CitaResponseDTO response = CitaResponseDTO.fromEntity(cita);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
 }

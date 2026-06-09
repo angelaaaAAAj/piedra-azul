@@ -15,6 +15,9 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.effect.DropShadow;
 import javafx.stage.Stage;
 
 import java.net.URI;
@@ -46,9 +49,28 @@ public class PiedraAzulApp extends Application {
         panelIzquierdo.setBackground(new Background(
                 new BackgroundFill(gradiente, CornerRadii.EMPTY, Insets.EMPTY)));
 
-        Text icono = new Text("✦");
-        icono.setFont(Font.font("System", FontWeight.BOLD, 60));
-        icono.setFill(Color.WHITE);
+        var url = getClass().getResource("/imagenes/logo.png");
+
+        System.out.println("URL = " + url);
+
+        if (url == null) {
+            throw new RuntimeException("NO SE ENCONTRO EL LOGO");
+        }
+
+        Image logo = new Image(url.toExternalForm());
+
+        ImageView icono = new ImageView(logo);
+        icono.setFitWidth(140);
+        icono.setFitHeight(140);
+        icono.setPreserveRatio(true);
+        icono.setSmooth(true);
+
+        DropShadow glow = new DropShadow();
+        glow.setRadius(20);
+        glow.setSpread(0.3);
+        glow.setColor(Color.rgb(255,255,255,0.4));
+
+        icono.setEffect(glow);
 
         Text nombreClinica = new Text("Clínica");
         nombreClinica.setFont(Font.font("System", FontWeight.BOLD, 28));
@@ -207,37 +229,40 @@ public class PiedraAzulApp extends Application {
         switch (rol) {
             case "ADMINISTRADOR" -> {
                 menu.getChildren().addAll(
-                        crearBotonMenu("👤  Gestión de Pacientes", () ->
-                                new com.piedraazul.ui.pacientes.PacienteApp().start(new Stage())),
-                        crearBotonMenu("📅  Agenda de Citas", () ->
-                                new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
-                        crearBotonMenu("📋  Historial Clínico", () ->
-                                new com.piedraazul.ui.historial.HistorialApp().start(new Stage())),
                         crearBotonMenu("🔍  Auditoría", () ->
                                 new com.piedraazul.ui.auditoria.AuditoriaApp().start(new Stage())),
                         crearBotonMenu("📊  Reportes y Estadísticas", () ->
                                 new com.piedraazul.ui.reportes.ReportesApp().start(new Stage())),
                         crearBotonMenu("➕  Registrar médico / agendador", () ->
-                                new com.piedraazul.ui.medico.RegistroPersonalApp().abrir())
+                                new com.piedraazul.ui.medico.RegistroPersonalApp().abrir()),
+                        crearBotonMenu("👤  Mi cuenta", () ->
+                                new com.piedraazul.ui.usuarios.CuentaApp(usuarioId, nombre, "")
+                                        .start(new Stage()))
                 );
             }
             case "MEDICO_TERAPISTA" -> {
                 menu.getChildren().addAll(
-                        crearBotonMenu("📅  Mis Citas", () ->
+                        crearBotonMenu("📅  Agendar Citas", () ->
                                 new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
                         crearBotonMenu("📋  Historial Clínico", () ->
                                 new com.piedraazul.ui.historial.HistorialApp(medicoId, nombre).start(new Stage())),
-                        crearBotonMenu("⚙️  Mi Disponibilidad", () ->
+                        crearBotonMenu("📊  Mi Disponibilidad", () ->
                                 new com.piedraazul.ui.medico.ConfiguracionMedicoApp(medicoId)
+                                        .start(new Stage())),
+                        crearBotonMenu("👤  Mi cuenta", () ->
+                                new com.piedraazul.ui.usuarios.CuentaApp(usuarioId, nombre, "")
                                         .start(new Stage()))
                 );
             }
             case "AGENDADOR" -> {
                 menu.getChildren().addAll(
-                        crearBotonMenu("👤  Gestión de Pacientes", () ->
+                        crearBotonMenu("\uD83D\uDCC1  Gestión de Pacientes", () ->
                                 new com.piedraazul.ui.pacientes.PacienteApp().start(new Stage())),
                         crearBotonMenu("📅  Agenda de Citas", () ->
-                                new com.piedraazul.ui.agenda.AgendaApp().start(new Stage()))
+                                new com.piedraazul.ui.agenda.AgendaApp().start(new Stage())),
+                        crearBotonMenu("👤  Mi cuenta", () ->
+                                new com.piedraazul.ui.usuarios.CuentaApp(usuarioId, nombre, "")
+                                        .start(new Stage()))
                 );
             }
             case "PACIENTE" -> {
@@ -245,8 +270,9 @@ public class PiedraAzulApp extends Application {
                         crearBotonMenu("📅  Mis Citas", () ->
                                 new com.piedraazul.ui.agenda.AgendaPacienteApp(pacienteId)
                                         .start(new Stage())),
-                        crearBotonMenu("📋  Mi Historial", () ->
-                                new com.piedraazul.ui.historial.HistorialApp().start(new Stage()))
+                        crearBotonMenu("👤  Mi cuenta", () ->
+                                new com.piedraazul.ui.usuarios.CuentaApp(usuarioId, nombre, "")
+                                        .start(new Stage()))
                 );
             }
         }
@@ -393,6 +419,10 @@ public class PiedraAzulApp extends Application {
             camposPacienteExistente.setManaged(
                     tipo.equals("Ya soy paciente, quiero crear mi cuenta"));
         });
+
+        cbTipo.setValue("Paciente nuevo");
+        camposPacienteNuevo.setVisible(true);
+        camposPacienteNuevo.setManaged(true);
 
         Button btnRegistrar = new Button("Registrar");
         btnRegistrar.setPrefWidth(Double.MAX_VALUE);

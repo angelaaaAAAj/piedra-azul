@@ -18,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -73,7 +75,8 @@ public class CitaService implements AgendarCitaUseCase,
         LocalDateTime fechaHora;
         if (dto.getFechaHoraManual() != null && !dto.getFechaHoraManual().isBlank()) {
             fechaHora = LocalDateTime.parse(dto.getFechaHoraManual());
-            if (citaPort.existeHorarioOcupado(medico.getId(), fechaHora)) {
+            // FIX: excluir citas CANCELADAS y COMPLETADAS al verificar horario ocupado
+            if (citaPort.existeHorarioOcupadoActivo(medico.getId(), fechaHora)) {
                 throw new RuntimeException("El horario ya está ocupado: " + fechaHora);
             }
         } else {
@@ -97,12 +100,38 @@ public class CitaService implements AgendarCitaUseCase,
 
         Cita guardada = citaPort.guardar(cita);
 
-        // Observer: notifica a ms-auditoria
-        eventPublisher.publishEvent(new CitaAgendadaEvent(
-                guardada.getId(), guardada.getPacienteId(), medico.getId(),
-                medico.getNombre() + " " + medico.getApellido(),
-                fechaHora, dto.getEstrategia(), LocalDateTime.now()
-        ));
+        auditoriaPort.registrarEvento(
+                "CITA_AGENDADA",
+                "Cita agendada correctamente",
+                guardada.getId(),
+                "sistema"
+        );
+
+        // FIX: publicar el evento DESPUÉS del commit para no contaminar la transacción
+        // Si ms-auditoria no está disponible, el guardado de la cita igual se confirma
+        final Long citaId       = guardada.getId();
+        final Long pacienteId   = guardada.getPacienteId();
+        final Long medicoId     = medico.getId();
+        final String nomMedico  = medico.getNombre() + " " + medico.getApellido();
+        final LocalDateTime fh  = fechaHora;
+        final String estrategia = dto.getEstrategia();
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            eventPublisher.publishEvent(new CitaAgendadaEvent(
+                                    citaId, pacienteId, medicoId, nomMedico,
+                                    fh, estrategia, LocalDateTime.now()
+                            ));
+                        } catch (Exception ex) {
+                            // Loguear el error pero no revertir la transacción ya confirmada
+                            System.err.println("Error publicando evento de cita agendada: " + ex.getMessage());
+                        }
+                    }
+                }
+        );
 
         return guardada;
     }
@@ -114,10 +143,18 @@ public class CitaService implements AgendarCitaUseCase,
         Cita cita = citaPort.buscarPorId(citaId)
                 .orElseThrow(() -> new RuntimeException("Cita no encontrada: " + citaId));
 
+        if (cita.getEstado() == EstadoCita.COMPLETADA) {
+            throw new RuntimeException("No se puede reagendar una cita ya completada.");
+        }
+        if (cita.getEstado() == EstadoCita.CANCELADA) {
+            throw new RuntimeException("No se puede reagendar una cita cancelada.");
+        }
+
         LocalDateTime fechaAnterior = cita.getFechaHora();
         LocalDateTime fechaNueva    = LocalDateTime.parse(nuevaFechaHoraStr);
 
-        if (citaPort.existeHorarioOcupado(cita.getMedico().getId(), fechaNueva)) {
+        // FIX: también excluir canceladas/completadas al verificar el nuevo horario
+        if (citaPort.existeHorarioOcupadoActivo(cita.getMedico().getId(), fechaNueva)) {
             throw new RuntimeException("El nuevo horario ya está ocupado: " + fechaNueva);
         }
 
@@ -125,9 +162,17 @@ public class CitaService implements AgendarCitaUseCase,
         cita.setEstado(EstadoCita.REAGENDADA);
         Cita guardada = citaPort.guardar(cita);
 
+        // Notificar a ms-historial (ya tiene try/catch interno, no afecta la tx)
         historialPort.registrarReagendamiento(
                 guardada.getId(), guardada.getPacienteId(), guardada.getMedico().getId(),
                 fechaAnterior, fechaNueva, cita.getMotivo(), "sistema"
+        );
+
+        auditoriaPort.registrarEvento(
+                "CITA_REAGENDADA",
+                "Cita reagendada",
+                guardada.getId(),
+                "sistema"
         );
 
         return guardada;
@@ -169,12 +214,43 @@ public class CitaService implements AgendarCitaUseCase,
     public List<Cita> listarTodas()                        { return citaPort.listarTodas(); }
     public List<Cita> listarPorMedico(Long medicoId)       { return citaPort.listarPorMedico(medicoId); }
     public List<Cita> listarPorPaciente(Long pacienteId)   { return citaPort.listarPorPaciente(pacienteId); }
+
     @Override
     @Transactional
     public Cita cancelar(Long id) {
+
+        Cita cita = citaPort.buscarPorId(id)
+                .orElseThrow(() ->
+                        new RuntimeException("Cita no encontrada: " + id));
+
+        if (cita.getEstado() == EstadoCita.COMPLETADA) {
+            throw new RuntimeException(
+                    "No se puede cancelar una cita ya completada.");
+        }
+
+        cita.setEstado(EstadoCita.CANCELADA);
+
+        Cita guardada = citaPort.guardar(cita);
+
+        auditoriaPort.registrarEvento(
+                "CITA_CANCELADA",
+                "Cita cancelada",
+                guardada.getId(),
+                "sistema"
+        );
+
+        return guardada;
+    }
+
+    @Override
+    @Transactional
+    public Cita completar(Long id) {
         Cita cita = citaPort.buscarPorId(id)
                 .orElseThrow(() -> new RuntimeException("Cita no encontrada: " + id));
-        cita.setEstado(EstadoCita.CANCELADA);
+        if (cita.getEstado() == EstadoCita.COMPLETADA) {
+            throw new RuntimeException("Esta cita ya fue marcada como completada.");
+        }
+        cita.setEstado(EstadoCita.COMPLETADA);
         return citaPort.guardar(cita);
     }
 }

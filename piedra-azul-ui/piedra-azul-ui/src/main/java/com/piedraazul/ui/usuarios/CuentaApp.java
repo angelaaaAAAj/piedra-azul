@@ -45,7 +45,7 @@ public class CuentaApp extends Application {
     public void start(Stage stage) {
 
         // ── Encabezado ──
-        Label titulo = new Label("⚙️  Configuración de cuenta");
+        Label titulo = new Label("👤  Configuración de cuenta");
         titulo.setFont(Font.font("System", FontWeight.BOLD, 20));
         titulo.setTextFill(Color.web("#4C1D95"));
 
@@ -55,9 +55,6 @@ public class CuentaApp extends Application {
 
         // ── Sección: datos personales ──
         Label secDatos = seccionLabel("Datos personales");
-
-        Label lblNombre = etiqueta("Nombre completo");
-        TextField txtNombre = campo(nombreActual);
 
         Label lblEmail = etiqueta("Correo electrónico");
         TextField txtEmail = campo(emailActual);
@@ -100,21 +97,17 @@ public class CuentaApp extends Application {
         btnGuardar.setOnAction(e -> {
             lblFeedback.setText("");
 
-            String nuevoNombre = txtNombre.getText().trim();
             String nuevoEmail  = txtEmail.getText().trim();
             String passActual  = txtPassActual.getText();
             String passNueva   = txtPassNueva.getText();
             String passConfirm = txtPassConfirm.getText();
 
             // Validaciones
-            if (nuevoNombre.isBlank() || nuevoEmail.isBlank()) {
-                feedback(lblFeedback, "✗ El nombre y el email son obligatorios.", false);
-                return;
-            }
 
             // Si quiere cambiar contraseña, validar que los campos estén completos
             boolean cambiaPass = !passNueva.isBlank() || !passActual.isBlank();
             if (cambiaPass) {
+
                 if (passActual.isBlank()) {
                     feedback(lblFeedback, "✗ Ingresa tu contraseña actual.", false);
                     return;
@@ -131,7 +124,6 @@ public class CuentaApp extends Application {
 
             try {
                 Map<String, Object> body = new LinkedHashMap<>();
-                body.put("nombre", nuevoNombre);
                 body.put("email",  nuevoEmail);
                 if (cambiaPass) {
                     body.put("nuevaPassword", passNueva);
@@ -160,8 +152,9 @@ public class CuentaApp extends Application {
                     txtPassConfirm.clear();
                 } else {
                     Map<?, ?> err = mapper.readValue(resp.body(), Map.class);
+                    Object errorMsg = err.get("error");
                     feedback(lblFeedback,
-                            "✗ " + err.getOrDefault("error", "Error al actualizar."),
+                            "✗ " + (errorMsg != null ? errorMsg.toString() : "Error al actualizar."),
                             false);
                 }
             } catch (Exception ex) {
@@ -172,7 +165,6 @@ public class CuentaApp extends Application {
         // ── Layout ──
         VBox form = new VBox(10,
                 secDatos,
-                lblNombre,   txtNombre,
                 lblEmail,    txtEmail,
                 new Separator(),
                 secPass,

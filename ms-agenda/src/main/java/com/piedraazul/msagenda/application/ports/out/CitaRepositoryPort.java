@@ -19,5 +19,11 @@ public interface CitaRepositoryPort {
     List<Cita> listarPorMedico(Long medicoId);
     List<Cita> listarPorPaciente(Long pacienteId);
     List<Cita> listarPorMedicoExcluyendoEstado(Long medicoId, EstadoCita estado);
+
+    /** Verifica si existe un horario ocupado, ignorando citas CANCELADAS y COMPLETADAS */
+    boolean existeHorarioOcupadoActivo(Long medicoId, LocalDateTime fechaHora);
+
+    /** @deprecated Usar existeHorarioOcupadoActivo para no bloquear horarios de citas canceladas */
+    @Deprecated
     boolean existeHorarioOcupado(Long medicoId, LocalDateTime fechaHora);
 }

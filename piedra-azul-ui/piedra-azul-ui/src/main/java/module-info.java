@@ -14,4 +14,7 @@ module com.piedraazul {
     exports com.piedraazul.ui.agenda;
     exports com.piedraazul.ui.historial;
     exports com.piedraazul.ui.medico;
+    exports com.piedraazul.ui.usuarios;
+    exports com.piedraazul.ui.reportes;
+
 }
