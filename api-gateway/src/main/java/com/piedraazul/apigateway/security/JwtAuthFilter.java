@@ -35,7 +35,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     // Rutas que NO requieren token
     private static final List<String> RUTAS_PUBLICAS = List.of(
             "/api/auth/login",
-            "/api/auth/registro",
             "/api/auth/registro/paciente-nuevo",
             "/api/auth/registro/paciente-existente"
     );
@@ -94,7 +93,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     }
 
     private boolean esRutaPublica(String path) {
-        return RUTAS_PUBLICAS.stream().anyMatch(path::equals);
+        return RUTAS_PUBLICAS.stream().anyMatch(path::startsWith);
     }
 
     private Mono<Void> rechazar(ServerWebExchange exchange, String mensaje) {

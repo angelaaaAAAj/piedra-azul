@@ -27,10 +27,13 @@ public class JwtUtil {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generarToken(String username, String rol) {
+    public String generarToken(String username, String rol,
+                               Long pacienteId, Long medicoId) {
         return Jwts.builder()
                 .subject(username)
-                .claim("rol", rol)
+                .claim("rol",        rol)
+                .claim("pacienteId", pacienteId)
+                .claim("medicoId",   medicoId)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + EXPIRACION_MS))
                 .signWith(secretKey)
